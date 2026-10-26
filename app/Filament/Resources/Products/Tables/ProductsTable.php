@@ -20,8 +20,10 @@ class ProductsTable
                     ->searchable(),
                 TextColumn::make('name')
                     ->searchable(),
-                TextColumn::make('kind')
+                TextColumn::make('kind')->label('Jenis')
                     ->searchable(),
+                TextColumn::make('sale_price')->label('Harga jual')->money('IDR', locale: 'id')->sortable(),
+                TextColumn::make('barcode')->searchable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

@@ -11,6 +11,11 @@ class Journal extends Model
 
     protected $casts = ['entry_date' => 'date'];
 
+    public function branch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function lines(): HasMany
     {
         return $this->hasMany(JournalLine::class);

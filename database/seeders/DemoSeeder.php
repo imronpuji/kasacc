@@ -18,8 +18,8 @@ class DemoSeeder extends Seeder
         $pusat = Branch::firstOrCreate(['code' => 'PUSAT'], ['name' => 'Cabang Pusat']);
         $bandung = Branch::firstOrCreate(['code' => 'BDG'], ['name' => 'Cabang Bandung']);
 
-        foreach ([['LCD13', 'LCD iPhone 13', 'sparepart'], ['BAT12', 'Baterai iPhone 12', 'sparepart'], ['CASE', 'Casing', 'aksesoris']] as [$sku, $name, $kind]) {
-            Product::firstOrCreate(['sku' => $sku], ['name' => $name, 'kind' => $kind]);
+        foreach ([['LCD13', 'LCD iPhone 13', 'sparepart', 1_800_000], ['BAT12', 'Baterai iPhone 12', 'sparepart', 700_000], ['CASE', 'Casing', 'aksesoris', 120_000]] as [$sku, $name, $kind, $price]) {
+            Product::firstOrCreate(['sku' => $sku], ['name' => $name, 'kind' => $kind, 'sale_price' => $price]);
         }
 
         foreach ([['owner', 'Pemilik', 'owner@kasir.test'], ['approver', 'Penyetuju', 'approver@kasir.test'], ['finance_admin', 'Admin Finance', 'finance@kasir.test'], ['cashier', 'Kasir', 'kasir@kasir.test']] as [$role, $name, $email]) {

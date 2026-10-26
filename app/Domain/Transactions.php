@@ -17,6 +17,7 @@ class Transactions
     public const KAS = '1-1100';
     public const BANK = '1-1110';
     public const PERSEDIAAN = '1-1500';
+    public const ANTAR_CABANG = '1-1600';
     public const UTANG = '2-1100';
     public const UANG_MUKA = '2-1400';
     public const MODAL = '3-1000';
@@ -192,5 +193,35 @@ class Transactions
             ['account' => $expenseAccount, 'debit' => $amount],
             ['account' => $this->moneyAccount($method), 'credit' => $amount],
         ], 'manual', $description);
+    }
+
+    /**
+     * Transfer stok antar cabang pada biaya rata-rata cabang asal. Tiap cabang mendapat jurnalnya sendiri
+     * lewat akun antar cabang (1-1600) yang saling meniadakan saat laporan dikonsolidasi.
+     *
+     * @return array{0: Journal, 1: Journal}
+     */
+    public function transferStock(int $fromBranch, int $toBranch, string $date, string $sku, int $qty): array
+    {
+        if ($fromBranch === $toBranch) {
+            throw new \InvalidArgumentException('Cabang asal dan tujuan harus berbeda.');
+        }
+
+        return DB::transaction(function () use ($fromBranch, $toBranch, $date, $sku, $qty) {
+            $productId = $this->productId($sku);
+            $cost = $this->inventory->issue($fromBranch, $productId, $qty, $date, 'transfer keluar', $sku);
+            $this->inventory->receive($toBranch, $productId, $qty, $cost, $date, 'transfer masuk', $sku);
+
+            $out = $this->post($fromBranch, $date, [
+                ['account' => self::ANTAR_CABANG, 'debit' => $cost],
+                ['account' => self::PERSEDIAAN, 'credit' => $cost],
+            ], 'transfer', "Transfer {$sku} ke cabang {$toBranch}");
+            $in = $this->post($toBranch, $date, [
+                ['account' => self::PERSEDIAAN, 'debit' => $cost],
+                ['account' => self::ANTAR_CABANG, 'credit' => $cost],
+            ], 'transfer', "Transfer {$sku} dari cabang {$fromBranch}");
+
+            return [$out, $in];
+        });
     }
 }

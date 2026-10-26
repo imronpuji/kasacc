@@ -13,11 +13,17 @@ use App\Models\Branch;
 use App\Models\Journal;
 use App\Models\JournalLine;
 use App\Models\Product;
+use App\Domain\Accounting\PaymentApprovalService;
+use App\Models\PaymentRequest;
+use App\Models\User;
 use Database\Seeders\AccountSeeder;
+use Database\Seeders\RoleSeeder;
+use Spatie\Activitylog\Models\Activity;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->seed(AccountSeeder::class);
+    $this->seed(RoleSeeder::class);
     $this->branch = Branch::create(['code' => 'PUSAT', 'name' => 'Cabang Pusat']);
     $this->ledger = app(LedgerService::class);
 });
@@ -121,5 +127,58 @@ it('T15: stok tidak cukup ditolak tanpa jurnal baru dan stok tidak berubah', fun
     expect(Journal::count())->toBe($journals);
 });
 
-it('K6: pencatat tidak boleh menyetujui pembayaran yang ia buat sendiri')->todo('butuh peran dan persetujuan (spatie/laravel-permission)');
-it('K8: setiap jurnal yang diposting tercatat di audit log')->todo('butuh spatie/laravel-activitylog');
+function staff(string $role, Branch $branch): User
+{
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $user->branches()->attach($branch->id);
+
+    return $user;
+}
+
+it('K6: pengaju tidak boleh menyetujui pembayaran sendiri dan harus punya wewenang', function () {
+    $tx = app(Transactions::class);
+    Product::create(['sku' => 'LCD13', 'name' => 'LCD iPhone 13', 'kind' => 'sparepart']);
+    $tx->purchase($this->branch->id, '2026-11-05', 'LCD13', 10, 1_100_000, 'kredit');
+
+    $maker = staff('finance_admin', $this->branch);
+    $owner = staff('owner', $this->branch);
+    $approver = staff('approver', $this->branch);
+    $outsider = User::factory()->create();
+    $outsider->assignRole('approver');
+    $approvals = app(PaymentApprovalService::class);
+
+    // Pengaju tanpa wewenang persetujuan
+    $request = $approvals->request($maker, $this->branch->id, 6_000_000, 'bank');
+    expect(fn () => $approvals->approve($request, $maker, '2026-11-08'))->toThrow(DomainException::class, 'sendiri');
+
+    // Pemilik pun tidak boleh menyetujui pengajuannya sendiri
+    $ownRequest = $approvals->request($owner, $this->branch->id, 1_000_000, 'bank');
+    expect(fn () => $approvals->approve($ownRequest, $owner, '2026-11-08'))->toThrow(DomainException::class, 'sendiri');
+
+    // Penyetuju dari luar cabang ditolak
+    expect(fn () => $approvals->approve($request, $outsider, '2026-11-08'))->toThrow(DomainException::class, 'tidak berwenang');
+
+    expect(Journal::where('source', 'purchase')->count())->toBe(1); // hanya pembelian; belum ada pembayaran
+
+    $approved = $approvals->approve($request, $approver, '2026-11-08');
+    expect($approved->status)->toBe('approved')->and($approved->approved_by)->toBe($approver->id);
+    expect(Journal::count())->toBe(2);
+    expect(fn () => $approvals->approve($request->fresh(), $approver, '2026-11-08'))->toThrow(DomainException::class, 'sudah diproses');
+});
+
+it('K8: setiap jurnal yang diposting tercatat di audit log dengan pelaku dan sumbernya', function () {
+    $user = staff('finance_admin', $this->branch);
+
+    $journal = $this->ledger->post([
+        'branch_id' => $this->branch->id, 'date' => '2026-11-01', 'source' => 'pos', 'created_by' => $user->id,
+        'lines' => [['account' => '1-1100', 'debit' => 100], ['account' => '3-1000', 'credit' => 100]],
+    ]);
+
+    $log = Activity::where('log_name', 'journal')->first();
+    expect($log)->not->toBeNull()
+        ->and($log->subject_id)->toBe($journal->id)
+        ->and($log->causer_id)->toBe($user->id)
+        ->and($log->properties['source'])->toBe('pos')
+        ->and($log->properties['branch_id'])->toBe($this->branch->id);
+});

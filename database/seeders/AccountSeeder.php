@@ -11,6 +11,7 @@ class AccountSeeder extends Seeder
         ['1-1100', 'Kas', 'asset'],
         ['1-1110', 'Bank', 'asset'],
         ['1-1500', 'Persediaan sparepart dan aksesoris', 'asset'],
+        ['1-1600', 'Rekening antar cabang', 'asset'],
         ['2-1100', 'Utang usaha', 'liability'],
         ['2-1400', 'Uang muka pelanggan (DP servis)', 'liability'],
         ['3-1000', 'Modal disetor', 'equity'],

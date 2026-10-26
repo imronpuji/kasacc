@@ -70,6 +70,19 @@ class LedgerService
             DB::statement('SET CONSTRAINTS journal_lines_balanced IMMEDIATE');
             DB::statement('SET CONSTRAINTS journal_lines_balanced DEFERRED');
 
+            // K8: audit log siapa, kapan, dan dari mana jurnal ini berasal.
+            activity('journal')
+                ->performedOn($journal)
+                ->causedBy(isset($entry['created_by']) ? \App\Models\User::find($entry['created_by']) : null)
+                ->withProperties([
+                    'source' => $journal->source,
+                    'branch_id' => $journal->branch_id,
+                    'entry_date' => $date->toDateString(),
+                    'total' => array_sum(array_column($prepared, 'debit')),
+                ])
+                ->event('posted')
+                ->log('Jurnal diposting');
+
             return $journal->load('lines');
         });
     }

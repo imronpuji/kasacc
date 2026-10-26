@@ -97,6 +97,8 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Neon pooler (pgbouncer): hindari prepared statement server-side yang di-cache (error "cached plan must not change result type").
+            'options' => extension_loaded('pdo_pgsql') ? [PDO::ATTR_EMULATE_PREPARES => true] : [],
         ],
 
         'sqlsrv' => [

@@ -112,4 +112,23 @@ it('menjalankan T1 sampai T19 dan menghasilkan laporan yang persis sama dengan d
     // Persediaan di buku besar harus sama dengan nilai kartu stok.
     $stockValue = (int) DB::table('stock_balances')->sum('value');
     expect($stockValue)->toBe(20_300_000)->and(balanceOf('1-1500'))->toBe($stockValue);
+
+    // Laporan operasional harus konsisten dengan buku besar dan dokumen skenario.
+    $ops = app(App\Domain\Accounting\OpsReportService::class);
+    $cf = $ops->cashFlow(null, '2026-11-01', '2026-11-30');
+    $net = fn (array $r) => $r['inflow'] - $r['outflow'];
+    $operasional = collect($cf['rows'])->sum($net) - 50_000_000; // di luar setoran modal
+    expect($cf['opening'])->toBe(0)->and($cf['closing'])->toBe(28_878_900)
+        ->and(collect($cf['rows'])->sum($net))->toBe(28_878_900)
+        ->and($operasional)->toBe(-21_121_100);
+    expect($cf['closing'])->toBe(balanceOf('1-1100') + balanceOf('1-1110'));
+
+    expect($ops->payables(null, '2026-11-30'))->toBe(5_000_000);
+
+    $card = $ops->stockCard($b, $this->lcd);
+    expect(end($card))->toMatchArray(['balance_qty' => 17, 'balance_value' => 17_850_000]);
+
+    $gl = $ops->generalLedger('1-1110', null, '2026-11-10', '2026-11-30');
+    expect($gl['opening'])->toBe(50_000_000 - 5_000_000 - 10_000_000 - 6_000_000)
+        ->and($gl['closing'])->toBe(24_268_900)->and(end($gl['rows'])['balance'])->toBe(24_268_900);
 });

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Di produksi: migrate:fresh, db:wipe, migrate:reset dan sejenisnya ditolak supaya data klien tidak terhapus.
+        DB::prohibitDestructiveCommands($this->app->isProduction());
     }
 }

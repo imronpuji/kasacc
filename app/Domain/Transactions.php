@@ -115,9 +115,9 @@ class Transactions
      * Servis selesai. $parts: [['sku' => ..., 'qty' => ..., 'price' => ...]].
      * $mdrBps: biaya QRIS dalam basis poin (70 = 0,7%) atas jumlah yang dibayar sekarang.
      */
-    public function completeService(int $branchId, string $date, array $parts, int $labor, int $depositApplied, string $method, int $mdrBps = 0, ?string $ticket = null): Journal
+    public function completeService(int $branchId, string $date, array $parts, int $labor, int $depositApplied, string $method, int $mdrBps = 0, ?string $ticket = null, string $source = 'service', string $description = 'Servis selesai'): Journal
     {
-        return DB::transaction(function () use ($branchId, $date, $parts, $labor, $depositApplied, $method, $mdrBps, $ticket) {
+        return DB::transaction(function () use ($branchId, $date, $parts, $labor, $depositApplied, $method, $mdrBps, $ticket, $source, $description) {
             $partsRevenue = 0;
             $hpp = 0;
             foreach ($parts as $p) {
@@ -150,7 +150,7 @@ class Transactions
                 $lines[] = ['account' => self::PERSEDIAAN, 'credit' => $hpp];
             }
 
-            return $this->post($branchId, $date, $lines, 'service', 'Servis selesai', $ticket);
+            return $this->post($branchId, $date, $lines, $source, $description, $ticket);
         });
     }
 
@@ -182,9 +182,9 @@ class Transactions
     }
 
     /** Penjualan kasir: pendapatan dan HPP dalam satu jurnal atomik. */
-    public function posSale(int $branchId, string $date, array $items, string $method, int $mdrBps = 0): Journal
+    public function posSale(int $branchId, string $date, array $items, string $method, int $mdrBps = 0, ?string $receipt = null): Journal
     {
-        return $this->completeService($branchId, $date, $items, 0, 0, $method, $mdrBps);
+        return $this->completeService($branchId, $date, $items, 0, 0, $method, $mdrBps, $receipt, 'pos', 'Penjualan kasir');
     }
 
     public function payExpense(int $branchId, string $date, string $expenseAccount, int $amount, string $method, string $description): Journal

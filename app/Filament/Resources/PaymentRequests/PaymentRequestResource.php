@@ -19,11 +19,13 @@ class PaymentRequestResource extends Resource
 {
     protected static ?string $model = PaymentRequest::class;
 
-    protected static ?string $navigationLabel = 'Pembayaran Utang';
+    protected static ?string $navigationLabel = 'Pembayaran utang';
 
     protected static ?string $modelLabel = 'Pengajuan pembayaran';
 
-    protected static ?int $navigationSort = 30;
+    protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
+
+    protected static ?int $navigationSort = 4;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 

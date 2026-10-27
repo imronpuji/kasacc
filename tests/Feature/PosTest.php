@@ -97,3 +97,20 @@ it('periode yang dikunci menolak penjualan dan stok tidak berubah', function () 
     expect(PosSale::count())->toBe(0);
     expect(app(InventoryService::class)->balance($this->branch->id, $this->case->id)->qty)->toBe(20);
 });
+
+it('menolak penjualan barang yang harga jualnya belum diisi (Rp0)', function () {
+    $free = Product::create(['sku' => 'NOPRICE', 'name' => 'Tanpa harga', 'kind' => 'aksesoris']);
+    app(Transactions::class)->purchase($this->branch->id, '2026-11-03', 'NOPRICE', 5, 10_000, 'kas');
+
+    expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [['product_id' => $free->id, 'qty' => 1]], 'kas'))
+        ->toThrow(DomainException::class, 'belum diisi');
+    expect(PosSale::count())->toBe(0);
+    expect(app(InventoryService::class)->balance($this->branch->id, $free->id)->qty)->toBe(5);
+});
+
+it('jurnal penjualan kasir berlabel pos dengan nomor struk sebagai referensi', function () {
+    $sale = $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kas');
+    $j = Journal::find($sale->journal_id);
+
+    expect($j->source)->toBe('pos')->and($j->description)->toBe('Penjualan kasir')->and($j->reference)->toBe($sale->receipt_no);
+});

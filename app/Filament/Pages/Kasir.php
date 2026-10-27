@@ -21,6 +21,8 @@ class Kasir extends Page
 
     protected static ?string $title = 'Kasir (POS)';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+
     protected static ?int $navigationSort = 1;
 
     public ?int $branchId = null;
@@ -54,22 +56,41 @@ class Kasir extends Page
     public function getResultsProperty()
     {
         $q = trim($this->search);
-        if ($q === '') {
-            return collect();
+        $stock = fn ($p) => (int) \App\Models\StockBalance::where('branch_id', $this->branchId)->where('product_id', $p->id)->value('qty');
+        $query = Product::query()->where('sale_price', '>', 0)->orderBy('name');
+        if ($q !== '') {
+            $query->where(fn ($w) => $w->where('barcode', $q)->orWhere('sku', 'ilike', "%$q%")->orWhere('name', 'ilike', "%$q%"));
         }
 
-        return Product::where(fn ($w) => $w->where('barcode', $q)->orWhere('sku', 'ilike', "%$q%")->orWhere('name', 'ilike', "%$q%"))
-            ->limit(8)->get();
+        return $query->limit(24)->get()->each(fn ($p) => $p->stock_qty = $stock($p));
     }
 
     public function add(int $productId): void
     {
         $p = Product::findOrFail($productId);
+        if ((int) $p->sale_price <= 0) {
+            Notification::make()->title('Harga jual belum diisi')->body("{$p->name} tidak bisa dijual sebelum harga diisi di menu Products.")->danger()->send();
+
+            return;
+        }
         $this->cart[$p->id] = [
             'product_id' => $p->id, 'name' => $p->name, 'price' => (int) $p->sale_price,
             'qty' => ($this->cart[$p->id]['qty'] ?? 0) + 1,
         ];
         $this->search = '';
+    }
+
+    public function changeQty(int $productId, int $delta): void
+    {
+        if (! isset($this->cart[$productId])) {
+            return;
+        }
+        $q = (int) $this->cart[$productId]['qty'] + $delta;
+        if ($q <= 0) {
+            unset($this->cart[$productId]);
+        } else {
+            $this->cart[$productId]['qty'] = $q;
+        }
     }
 
     public function remove(int $productId): void
@@ -87,7 +108,8 @@ class Kasir extends Page
         try {
             $sale = app(PosService::class)->checkout(
                 auth()->user(), (int) $this->branchId, now()->toDateString(),
-                array_values(array_map(fn ($i) => ['product_id' => $i['product_id'], 'qty' => (int) $i['qty'], 'price' => (int) $i['price']], $this->cart)),
+                // Harga tidak dikirim dari layar: PosService memakai harga jual produk saat ini, jadi data layar yang dipalsukan tidak berpengaruh.
+                array_values(array_map(fn ($i) => ['product_id' => (int) $i['product_id'], 'qty' => (int) $i['qty']], $this->cart)),
                 $this->method,
             );
         } catch (\Throwable $e) {

@@ -40,25 +40,29 @@ class PosService
             $product = Product::findOrFail($item['product_id']);
             $qty = $item['qty'] ?? 0;
             $price = $item['price'] ?? $product->sale_price;
-            if (! is_int($qty) || $qty <= 0 || ! is_int($price) || $price < 0) {
+            if (! is_int($price) || $price <= 0) {
+                throw new DomainException("Harga jual {$product->name} belum diisi (Rp0). Isi dulu di menu Products.");
+            }
+            if (! is_int($qty) || $qty <= 0) {
                 throw new DomainException("Jumlah atau harga {$product->name} tidak valid.");
             }
             $lines[] = ['sku' => $product->sku, 'product_id' => $product->id, 'qty' => $qty, 'price' => $price];
         }
 
-        $mdrBps = $method === 'qris' ? (int) config('kasir.qris_mdr_bps') : 0;
+        $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
 
         return DB::transaction(function () use ($cashier, $branchId, $date, $lines, $method, $mdrBps) {
+            $receiptNo = $this->nextReceiptNo($branchId, $date);
             $journal = $this->transactions->posSale($branchId, $date, array_map(
                 fn ($l) => ['sku' => $l['sku'], 'qty' => $l['qty'], 'price' => $l['price']], $lines,
-            ), $method, $mdrBps);
+            ), $method, $mdrBps, $receiptNo);
 
             $total = array_sum(array_map(fn ($l) => $l['qty'] * $l['price'], $lines));
             $mdr = $method === 'qris' ? intdiv($total * $mdrBps * 2 + 10000, 20000) : 0;
 
             $sale = PosSale::create([
                 'branch_id' => $branchId,
-                'receipt_no' => $this->nextReceiptNo($branchId, $date),
+                'receipt_no' => $receiptNo,
                 'cashier_id' => $cashier->id,
                 'sold_on' => $date,
                 'payment_method' => $method,

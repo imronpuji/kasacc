@@ -18,9 +18,20 @@ use Filament\Tables\Table;
 
 class AccountResource extends Resource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Data master';
+
+    protected static ?string $navigationLabel = 'Bagan akun';
+
+    protected static ?int $navigationSort = 3;
+
     protected static ?string $model = Account::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasRole('owner') ?? false;
+    }
 
     public static function form(Schema $schema): Schema
     {

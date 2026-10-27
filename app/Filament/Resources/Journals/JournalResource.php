@@ -26,11 +26,19 @@ class JournalResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Jurnal';
 
-    protected static ?int $navigationSort = 20;
+    protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
+
+    protected static ?int $navigationSort = 2;
 
     public static function canViewAny(): bool
     {
         return auth()->user()?->can('view-reports') ?? false;
+    }
+
+    /** Alamat ngawur seperti /journals/create tidak boleh error 500: perlakukan sebagai tidak ditemukan. */
+    public static function resolveRecordRouteBinding(int|string $key, ?\Closure $modifyQuery = null): ?\Illuminate\Database\Eloquent\Model
+    {
+        return ctype_digit((string) $key) ? parent::resolveRecordRouteBinding($key, $modifyQuery) : null;
     }
 
     public static function canCreate(): bool

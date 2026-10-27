@@ -4,7 +4,9 @@ namespace App\Filament\Pages;
 
 use App\Domain\Service\ServiceTicketService;
 use App\Models\Branch;
+use App\Models\Product;
 use App\Models\ServiceTicket;
+use App\Models\StockBalance;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -32,6 +34,8 @@ class Servis extends Page implements HasTable
 
     protected static ?string $title = 'Servis iPhone';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+
     protected static ?int $navigationSort = 2;
 
     public static function canAccess(): bool
@@ -47,6 +51,13 @@ class Servis extends Page implements HasTable
         } catch (\Throwable $e) {
             Notification::make()->title('Gagal')->body($e->getMessage())->danger()->send();
         }
+    }
+
+    /** Pilihan sparepart di cabang tiket: hanya yang stoknya ada, dengan sisa stok di labelnya. */
+    private static function stockOptions(int $branchId): array
+    {
+        return StockBalance::with('product')->where('branch_id', $branchId)->where('qty', '>', 0)->get()
+            ->mapWithKeys(fn ($b) => [$b->product->sku => "{$b->product->name} ({$b->product->sku}) — stok {$b->qty}"])->all();
     }
 
     public function table(Table $table): Table
@@ -87,9 +98,11 @@ class Servis extends Page implements HasTable
                 Action::make('selesai')->label('Selesaikan')->visible(fn (ServiceTicket $r) => $r->status === 'diterima')
                     ->schema([
                         Repeater::make('parts')->label('Sparepart')->defaultItems(0)->schema([
-                            TextInput::make('sku')->label('SKU')->required(),
+                            Select::make('sku')->label('Sparepart')->required()->searchable()->live()
+                                ->options(fn (ServiceTicket $record) => self::stockOptions($record->branch_id))
+                                ->afterStateUpdated(fn ($state, $set) => $set('price', (int) Product::where('sku', $state)->value('sale_price') ?: null)),
                             TextInput::make('qty')->numeric()->minValue(1)->default(1)->required(),
-                            TextInput::make('price')->label('Harga jual')->numeric()->minValue(0)->required(),
+                            TextInput::make('price')->label('Harga jual')->numeric()->minValue(1)->required(),
                         ])->columns(3),
                         TextInput::make('labor')->label('Biaya jasa')->numeric()->minValue(0)->default(0)->required(),
                         Select::make('method')->label('Bayar')->options(['kas' => 'Tunai', 'bank' => 'Transfer', 'qris' => 'QRIS'])->default('kas')->required(),
@@ -105,7 +118,7 @@ class Servis extends Page implements HasTable
                         $r, auth()->user(), now()->toDateString(), (int) $data['fee'],
                     ), 'Servis dibatalkan')),
                 Action::make('garansi')->label('Klaim garansi')->visible(fn (ServiceTicket $r) => $r->status === 'selesai')
-                    ->schema([TextInput::make('sku')->label('SKU pengganti')->required(), TextInput::make('qty')->numeric()->minValue(1)->default(1)->required()])
+                    ->schema([Select::make('sku')->label('Sparepart pengganti')->required()->searchable()->options(fn (ServiceTicket $record) => self::stockOptions($record->branch_id)), TextInput::make('qty')->numeric()->minValue(1)->default(1)->required()])
                     ->action(fn (ServiceTicket $r, array $data) => self::run(fn () => app(ServiceTicketService::class)->claimWarranty(
                         $r, auth()->user(), now()->toDateString(), $data['sku'], (int) $data['qty'],
                     ), 'Klaim garansi dicatat')),

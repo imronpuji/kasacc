@@ -72,7 +72,7 @@ class OpsReportService
         $rows = [];
         foreach ($q()->whereBetween('j.entry_date', [$from, $to])->orderBy('j.entry_date')->orderBy('j.id')->get(['j.entry_date', 'j.id', 'j.description', 'l.debit', 'l.credit']) as $r) {
             $balance += $r->debit - $r->credit;
-            $rows[] = ['date' => $r->entry_date, 'journal_id' => $r->id, 'memo' => $r->description, 'debit' => (int) $r->debit, 'credit' => (int) $r->credit, 'balance' => $balance];
+            $rows[] = ['date' => $r->entry_date, 'journal_id' => $r->id, 'description' => $r->description, 'debit' => (int) $r->debit, 'credit' => (int) $r->credit, 'balance' => $balance];
         }
 
         return ['opening' => $opening, 'rows' => $rows, 'closing' => $balance];
@@ -87,5 +87,42 @@ class OpsReportService
             ->where('l.account_id', $id)->where('j.entry_date', '<=', $to)
             ->when($branchId, fn ($q) => $q->where('j.branch_id', $branchId))
             ->selectRaw('COALESCE(SUM(l.debit) - SUM(l.credit), 0) as n')->value('n');
+    }
+
+    /**
+     * Umur utang per pembelian kredit. Utang dicatat tanpa nomor faktur, jadi pembayaran dan retur
+     * dialokasikan ke pembelian tertua lebih dulu (FIFO). Umur dihitung dari tanggal pembelian.
+     */
+    public function payablesAging(?int $branchId, string $asOf): array
+    {
+        $id = DB::table('accounts')->where('code', '2-1100')->value('id');
+        $lines = DB::table('journal_lines as l')->join('journals as j', 'j.id', '=', 'l.journal_id')
+            ->where('l.account_id', $id)->where('j.entry_date', '<=', $asOf)
+            ->when($branchId, fn ($q) => $q->where('j.branch_id', $branchId))
+            ->orderBy('j.entry_date')->orderBy('j.id')
+            ->get(['j.id as journal_id', 'j.entry_date', 'j.description', 'l.debit', 'l.credit']);
+
+        $paid = (int) $lines->sum('debit');
+        $open = [];
+        foreach ($lines as $l) {
+            if ($l->credit <= 0) {
+                continue;
+            }
+            $take = min($paid, (int) $l->credit);
+            $paid -= $take;
+            $left = (int) $l->credit - $take;
+            if ($left > 0) {
+                $open[] = ['journal_id' => $l->journal_id, 'date' => (string) $l->entry_date, 'description' => $l->description, 'open' => $left,
+                    'age_days' => (int) \Carbon\CarbonImmutable::parse($l->entry_date)->diffInDays(\Carbon\CarbonImmutable::parse($asOf))];
+            }
+        }
+
+        $buckets = ['0-30' => 0, '31-60' => 0, '61-90' => 0, '>90' => 0];
+        foreach ($open as $r) {
+            $key = $r['age_days'] <= 30 ? '0-30' : ($r['age_days'] <= 60 ? '31-60' : ($r['age_days'] <= 90 ? '61-90' : '>90'));
+            $buckets[$key] += $r['open'];
+        }
+
+        return ['rows' => $open, 'buckets' => $buckets, 'total' => array_sum($buckets)];
     }
 }

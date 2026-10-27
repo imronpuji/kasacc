@@ -12,3 +12,15 @@ Route::get('/struk/{receipt}', function (string $receipt) {
 
     return view('struk', compact('sale'));
 })->middleware('web')->name('struk');
+
+Route::get('/slip/{run}', function (int $run) {
+    $user = auth()->user();
+    abort_unless($user, 403);
+    $employeeIds = App\Models\Employee::where('user_id', $user->id)->pluck('id');
+    $manager = $user->can('manage-hr') || $user->can('approve-payroll');
+    $run = App\Models\PayrollRun::with(['branch', 'slips.employee'])->findOrFail($run);
+    $slips = $manager ? $run->slips : (in_array($run->status, ['disetujui', 'dibayar']) ? $run->slips->whereIn('employee_id', $employeeIds) : collect());
+    abort_if($slips->isEmpty(), 403);
+
+    return view('slip', ['run' => $run, 'slips' => $slips]);
+})->middleware('web')->name('slip');

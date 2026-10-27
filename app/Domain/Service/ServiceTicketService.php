@@ -77,7 +77,7 @@ class ServiceTicketService
                 throw new DomainException('DP melebihi total tagihan; selesaikan sebagai pembatalan atau tambah biaya.');
             }
 
-            $mdrBps = $method === 'qris' ? (int) config('kasir.qris_mdr_bps') : 0;
+            $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
             $journal = $this->transactions->completeService(
                 $ticket->branch_id, $date, $parts, $labor, (int) $ticket->deposit, $method, $mdrBps, $ticket->code,
             );

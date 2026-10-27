@@ -25,9 +25,11 @@ class Stok extends Page implements HasTable
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
-    protected static ?string $navigationLabel = 'Stok';
+    protected static ?string $navigationLabel = 'Stok dan pembelian';
 
     protected static ?string $title = 'Stok & Pembelian';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
 
     protected static ?int $navigationSort = 3;
 

@@ -1,0 +1,114 @@
+/* Tema iZone: mengikuti desain di kanvas "iZone Redesign". Murni CSS, tidak perlu build. */
+:root{--iz-blue:#0B63F6;--iz-blue-dark:#0B4FC4;--iz-blue-soft:#E8F0FE;--iz-ink:#111827;--iz-muted:#5B6472;--iz-line:#E5E7EB;--iz-line-soft:#EEF0F3;--iz-bg:#F7F8FA}
+html,body,.fi-body{background:var(--iz-bg)!important;color:var(--iz-ink);font-family:'Inter',system-ui,sans-serif}
+
+/* Sidebar */
+.fi-sidebar,.fi-sidebar-header-ctn,.fi-sidebar-header{background:#fff!important;box-shadow:none!important}
+.fi-sidebar{border-right:1px solid var(--iz-line)}
+.fi-sidebar-header{padding:24px 16px 12px!important}
+.fi-sidebar-nav{padding:8px 16px 24px!important}
+.fi-sidebar-group-label{font-size:12px!important;font-weight:600!important;letter-spacing:.08em;text-transform:uppercase;color:var(--iz-muted)!important}
+.fi-sidebar-group-btn{padding:14px 12px 6px!important}
+.fi-sidebar-item-btn{min-height:44px;border-radius:12px!important;padding:0 12px!important;font-size:15px;font-weight:500;color:#374151}
+.fi-sidebar-item-icon{width:20px!important;height:20px!important;color:#374151!important}
+.fi-sidebar-item-btn:hover{background:#F3F4F6!important}
+.fi-sidebar-item.fi-active .fi-sidebar-item-btn,.fi-sidebar-item-btn.fi-active{background:var(--iz-blue-soft)!important}
+.fi-sidebar-item.fi-active .fi-sidebar-item-label,.fi-sidebar-item.fi-active .fi-sidebar-item-icon{color:var(--iz-blue-dark)!important}
+
+/* Halaman */
+.fi-main{padding-top:8px}
+.fi-page-header-main-ctn{padding-top:28px!important}
+.fi-header-heading{font-size:30px!important;font-weight:700!important;letter-spacing:-.02em;color:var(--iz-ink)}
+.fi-header-subheading{font-size:15px!important;color:var(--iz-muted)!important;max-width:880px;line-height:1.55}
+
+/* Kartu */
+.fi-section,.fi-ta-ctn,.fi-wi-stats-overview-stat{background:#fff!important;border:1px solid var(--iz-line)!important;border-radius:18px!important;box-shadow:none!important;--tw-ring-shadow:0 0 #0000!important}
+.fi-section-header-heading{font-size:18px!important;font-weight:600!important}
+
+/* Tombol */
+.fi-btn{border-radius:12px!important;min-height:44px;font-weight:600!important;font-size:15px!important;padding:0 18px!important;box-shadow:none!important}
+.fi-btn.fi-color-primary:not(.fi-outlined){background:var(--iz-blue)!important;color:#fff!important}
+.fi-btn.fi-color-primary:not(.fi-outlined):hover{background:var(--iz-blue-dark)!important}
+.fi-btn.fi-color-gray{background:#fff!important;border:1px solid #D1D5DB!important;color:var(--iz-ink)!important}
+.fi-btn.fi-color-danger:not(.fi-outlined){background:#FDECEA!important;color:#B42318!important}
+.fi-btn-size-xl,.fi-btn.fi-size-xl{min-height:60px;font-size:18px!important}
+.fi-link{font-weight:600}
+
+/* Isian */
+.fi-input-wrp,.fi-select-input-ctn{border-radius:12px!important;background:#fff!important;border:1px solid #D1D5DB;box-shadow:none!important;--tw-ring-shadow:0 0 #0000!important}
+.fi-input-wrp:focus-within{border:2px solid var(--iz-blue)!important}
+.fi-input{min-height:48px;font-size:16px!important;padding:0 14px!important}
+select.fi-select-input{min-height:48px;font-size:16px!important}
+.fi-fo-field-label-content{font-size:15px!important;font-weight:600!important;color:var(--iz-ink)!important}
+.fi-fo-field-wrp-helper-text,.fi-fo-field-wrp-hint{font-size:14px!important;color:var(--iz-muted)!important;line-height:1.5}
+.fi-fo-field-wrp{row-gap:6px}
+.fi-fo-toggle{border-radius:999px}
+
+/* Modal */
+.fi-modal-window{border-radius:24px!important;box-shadow:0 24px 60px rgba(17,24,39,.18)!important}
+.fi-modal-heading{font-size:24px!important;font-weight:700!important;letter-spacing:-.02em}
+.fi-modal-description{font-size:15px!important;color:var(--iz-muted)!important;line-height:1.55}
+.fi-modal-footer-actions{gap:12px}
+
+/* Tabel */
+.fi-ta-header-cell{font-size:13px!important;font-weight:600!important;color:var(--iz-muted)!important}
+.fi-ta-cell{font-size:15px}
+.fi-ta-row:hover{background:#FAFBFC}
+.fi-ta-text-item-label{font-variant-numeric:tabular-nums}
+
+/* Lencana */
+.fi-badge{border-radius:999px!important;font-size:13px!important;font-weight:600!important;padding:4px 12px!important}
+
+/* Notifikasi */
+.fi-no-notification{border-radius:16px!important}
+
+/* Komponen iZone (dashboard, payroll, kasir) */
+.iz-card{background:#fff;border:1px solid var(--iz-line);border-radius:18px;padding:22px 24px}
+.iz-kpis{display:flex;flex-wrap:wrap;gap:16px}
+.iz-kpi{flex:1 1 220px;display:flex;flex-direction:column;gap:6px;padding:20px 22px}
+.iz-kpi-label{font-size:14px;color:var(--iz-muted);font-weight:500}
+.iz-kpi-value{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.iz-kpi-note{font-size:13px;font-weight:500}
+.iz-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.iz-grow-15{flex:1.5 1 420px;min-width:0}.iz-grow-1{flex:1 1 300px;min-width:0}
+.iz-card h2{font-size:18px;font-weight:600;margin:0}
+.iz-card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.iz-card-head span{font-size:13px;color:var(--iz-muted)}
+.iz-task{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--iz-line-soft)}
+.iz-task-body{flex:1;min-width:0}.iz-task-title{font-size:15px;font-weight:600}.iz-task-sub{font-size:14px;color:var(--iz-muted)}
+.iz-pill{flex:0 0 auto;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600}
+.iz-link{font-size:14px;font-weight:600;color:var(--iz-blue);text-decoration:none;white-space:nowrap}
+.iz-empty{padding:24px 8px;text-align:center;color:var(--iz-muted);font-size:15px;background:var(--iz-bg);border-radius:14px}
+.iz-bar{height:8px;border-radius:999px;background:var(--iz-line-soft);margin-top:6px}.iz-bar>div{height:8px;border-radius:999px}
+.iz-info{background:var(--iz-blue-soft);border-radius:14px;padding:14px 18px;font-size:15px;line-height:1.5;color:#0B3A91}
+
+/* Laporan */
+.lp-field{display:flex;flex-direction:column;gap:6px}
+.lp-field>label{font-size:15px;font-weight:600}
+.lp-help{font-size:14px;color:var(--iz-muted)}
+.lp-tabs{display:flex;flex-wrap:wrap;gap:8px}
+.lp-tabs a{display:flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;text-decoration:none;font-size:15px;font-weight:600;border:1px solid #D1D5DB;background:#fff;color:var(--iz-ink)}
+.lp-tabs a.on{background:var(--iz-blue);border-color:var(--iz-blue);color:#fff}
+.lp-t{width:100%;border-collapse:collapse;font-size:15px}
+.lp-t td{padding:10px 0;border-top:1px solid var(--iz-line-soft)}
+.lp-t tr:first-child td{border-top:0}
+.lp-t .n{text-align:right;font-variant-numeric:tabular-nums}
+.lp-t .in{padding-left:16px}
+.lp-t tr.tot td{border-top:2px solid var(--iz-ink);font-weight:700}
+.lp-t tr.big td{font-size:17px}
+.lp-t tr.h td{font-size:13px;font-weight:600;color:var(--iz-muted);border-top:0}
+.lp-grid td{padding:10px 8px}
+.lp-sub{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--iz-muted);margin-bottom:2px}
+.lp-note{margin-top:14px;border-radius:14px;padding:12px 16px;font-size:15px;font-weight:600}
+.lp-bars{display:flex;align-items:flex-end;gap:14px;height:190px;border-bottom:1px solid var(--iz-line);padding-top:8px}
+.lp-bars>div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}
+.lp-bars span{font-size:12px;font-weight:600;color:#374151}
+.lp-bars i{display:block;width:100%;max-width:44px;border-radius:10px 10px 0 0}
+.lp-bars small{font-size:13px;color:var(--iz-muted);position:relative;bottom:-24px;height:0}
+.lp-bars{margin-bottom:28px}
+html{scroll-behavior:smooth}
+section[id]{scroll-margin-top:16px}
+
+/* Tombol biasa di luar komponen Filament */
+.iz-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:12px;border:1px solid #D1D5DB;background:#fff;color:var(--iz-ink);font:600 15px 'Inter',system-ui,sans-serif;text-decoration:none;cursor:pointer}
+.iz-btn:hover{background:#F3F4F6}

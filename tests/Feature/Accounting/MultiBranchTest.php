@@ -77,6 +77,7 @@ it('pengguna hanya bisa mengajukan pembayaran di cabang yang ia punya aksesnya',
     $user->assignRole('finance_admin');
     $user->branches()->attach($this->a);
     $approvals = app(PaymentApprovalService::class);
+    app(App\Domain\Transactions::class)->purchase($this->a, '2026-11-02', 'LCD13', 1, 100_000, 'kredit');
 
     expect($approvals->request($user, $this->a, 100_000, 'bank'))->not->toBeNull();
     expect(fn () => $approvals->request($user, $this->c, 100_000, 'bank'))->toThrow(DomainException::class);

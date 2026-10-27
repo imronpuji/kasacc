@@ -13,19 +13,32 @@ class DemoSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            throw new \RuntimeException('DemoSeeder tidak boleh dijalankan di produksi. Pakai ProductionSeeder.');
+        }
+
         $this->call([AccountSeeder::class, RoleSeeder::class]);
 
         $pusat = Branch::firstOrCreate(['code' => 'PUSAT'], ['name' => 'Cabang Pusat']);
         $bandung = Branch::firstOrCreate(['code' => 'BDG'], ['name' => 'Cabang Bandung']);
+        $pusat->update(['lat' => -6.200000, 'lng' => 106.816666, 'geofence_m' => 100]); // contoh titik toko untuk uji absen
+        $bandung->update(['lat' => -6.917464, 'lng' => 107.619125, 'geofence_m' => 100]);
 
         foreach ([['LCD13', 'LCD iPhone 13', 'sparepart', 1_800_000], ['BAT12', 'Baterai iPhone 12', 'sparepart', 700_000], ['CASE', 'Casing', 'aksesoris', 120_000]] as [$sku, $name, $kind, $price]) {
-            Product::firstOrCreate(['sku' => $sku], ['name' => $name, 'kind' => $kind, 'sale_price' => $price]);
+            Product::updateOrCreate(['sku' => $sku], ['name' => $name, 'kind' => $kind, 'sale_price' => $price]);
         }
 
-        foreach ([['owner', 'Pemilik', 'owner@kasir.test'], ['approver', 'Penyetuju', 'approver@kasir.test'], ['finance_admin', 'Admin Finance', 'finance@kasir.test'], ['cashier', 'Kasir', 'kasir@kasir.test']] as [$role, $name, $email]) {
+        foreach ([['owner', 'Pemilik', 'owner@kasir.test'], ['approver', 'Penyetuju', 'approver@kasir.test'], ['finance_admin', 'Admin Finance', 'finance@kasir.test'], ['hr', 'Staf HR', 'hr@kasir.test'], ['cashier', 'Kasir', 'kasir@kasir.test'], ['technician', 'Andi (Teknisi)', 'andi@kasir.test'], ['technician', 'Budi (Teknisi)', 'budi@kasir.test']] as [$role, $name, $email]) {
             $user = User::firstOrCreate(['email' => $email], ['name' => $name, 'password' => bcrypt('password')]);
             $user->syncRoles([$role]);
             $user->branches()->syncWithoutDetaching([$pusat->id, $bandung->id]);
+        }
+
+        foreach ([['andi@kasir.test', 'Andi', 'Teknisi', '2025-03-01', 4_500_000, 500_000, 'TK/0', 'bank', 1000], ['budi@kasir.test', 'Budi', 'Teknisi', '2024-08-01', 5_000_000, 500_000, 'K/1', 'bank', 1000], ['kasir@kasir.test', 'Sari', 'Kasir', '2025-06-01', 4_000_000, 325_000, 'TK/0', 'tunai', 0]] as [$email, $name, $pos, $hired, $base, $allow, $ptkp, $method, $bps]) {
+            \App\Models\Employee::firstOrCreate(['name' => $name, 'branch_id' => $pusat->id], [
+                'user_id' => User::where('email', $email)->value('id'), 'position' => $pos, 'hired_on' => $hired,
+                'base_salary' => $base, 'fixed_allowance' => $allow, 'ptkp' => $ptkp, 'pay_method' => $method, 'commission_bps' => $bps,
+            ]);
         }
 
         if (\App\Models\Journal::exists()) {

@@ -148,7 +148,8 @@ class Karyawan extends Page implements HasTable
     {
         $data['commission_bps'] = (int) round(((float) $data['commission_pct']) * 100);
         unset($data['commission_pct']);
-        if (! empty($data['resigned_on'])) {
+        // Baru nonaktif kalau tanggal berhenti sudah tiba; sebelum itu karyawan masih bekerja dan boleh absen.
+        if (! empty($data['resigned_on']) && $data['resigned_on'] <= now()->toDateString()) {
             $data['is_active'] = false;
         }
         if (! empty($data['create_login'])) {

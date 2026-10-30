@@ -236,3 +236,17 @@ it('R8 THR kedua dalam setahun ditolak, hitung ulang draf yang sama boleh', func
     expect(fn () => $this->pay->generate($this->finance, $this->branch->id, 2027, 2, true))->toThrow(DomainException::class, 'sekali setahun');
     expect($this->pay->generate($this->finance, $this->branch->id, 2027, 2)->slips()->first()->thr)->toBe(0);
 });
+
+it('R2 karyawan dengan tanggal berhenti di masa depan masih boleh absen, setelah tanggalnya lewat ditolak', function () {
+    $svc = app(\App\Domain\Payroll\AttendanceLogService::class);
+    $today = $svc->now()->toDateString();
+
+    $this->emp->update(['resigned_on' => $svc->now()->addDays(10)->toDateString()]);
+    expect($svc->employeeFor($this->tech)->id)->toBe($this->emp->id);
+
+    $this->emp->update(['resigned_on' => $today]);
+    expect($svc->employeeFor($this->tech)->id)->toBe($this->emp->id);
+
+    $this->emp->update(['resigned_on' => $svc->now()->subDay()->toDateString()]);
+    expect(fn () => $svc->employeeFor($this->tech))->toThrow(DomainException::class, 'nonaktif');
+});

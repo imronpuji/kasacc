@@ -23,7 +23,7 @@ class AttendanceLogService
         if (! $e) {
             throw new DomainException('Akun ini belum terhubung ke data karyawan. Minta HR menghubungkannya di menu Karyawan dan absensi.');
         }
-        if (! $e->is_active) {
+        if (! $e->is_active || ($e->resigned_on && $e->resigned_on->lt($this->now()->startOfDay()))) {
             throw new DomainException('Karyawan ini sudah nonaktif sehingga tidak bisa absen. Hubungi HR kalau ini keliru.');
         }
 

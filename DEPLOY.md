@@ -17,6 +17,9 @@ KASIR_OWNER_EMAIL=pemilik@klien.com
 KASIR_OWNER_PASSWORD=minimal-12-karakter
 KASIR_OWNER_NAME=Nama Pemilik
 KASIR_QRIS_MDR_BPS=70
+KASIR_POINT_EARN_PER=10000
+KASIR_POINT_VALUE=100
+KASIR_POINT_MAX_PERCENT=50
 ```
 `.env` tidak boleh masuk git. Dev memakai `.env` sendiri dengan connection string Dev.
 

@@ -89,7 +89,8 @@ class PayrollService
         $upah = $e->upah();
         $workDays = $g('work_days');
         $absence = intdiv((int) $e->base_salary * $att->absent * 2 + $workDays, 2 * $workDays);
-        $late = $att->late * $g('late_fee');
+        // Karyawan komisi-saja (tanpa gaji pokok) tidak ada jam kerja tetap, jadi tidak ada potongan terlambat.
+        $late = (int) $e->base_salary > 0 ? $att->late * $g('late_fee') : 0;
         $h = $att->overtime_hours;
         $halfUnits = $h >= 1 ? 3 + 4 * ($h - 1) : 0; // jam pertama 1,5x, berikutnya 2x (dalam setengah)
         $overtime = intdiv($upah * $halfUnits + $g('overtime_divisor'), 2 * $g('overtime_divisor'));

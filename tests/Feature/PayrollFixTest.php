@@ -282,26 +282,31 @@ it('rincian komisi di slip cocok dengan total, termasuk karyawan tanpa gaji poko
         ->assertSee('Rincian komisi servis (40% dari ongkos servis)')->assertSee('2 unit');
 });
 
-it('karyawan komisi-saja: potongan telat dibatasi sebesar penghasilan, gaji tidak negatif dan bisa disetujui', function () {
+it('karyawan komisi-saja tidak kena potongan telat', function () {
     $this->emp->update(['base_salary' => 0, 'fixed_allowance' => 0, 'commission_bps' => 4000]);
     $this->months = [1];
     fixAttendance(['late' => 15]);
     fixTicket($this->branch->id, $this->tech->id, 500_000, '2027-01-10');
+    $slip = $this->pay->generate($this->finance, $this->branch->id, 2027, 1)->slips()->first();
+
+    expect($slip->late_deduction)->toBe(0)->and($slip->income)->toBe(200_000)->and($slip->net_pay)->toBe(200_000);
+});
+
+it('potongan telat gaji pokok kecil dibatasi sebesar penghasilan, tidak negatif', function () {
+    $this->emp->update(['base_salary' => 100_000, 'fixed_allowance' => 0, 'commission_bps' => 0]);
+    $this->months = [1];
+    fixAttendance(['late' => 15]);
     $run = $this->pay->generate($this->finance, $this->branch->id, 2027, 1);
     $slip = $run->slips()->first();
 
-    expect($slip->commission)->toBe(200_000)->and($slip->late_deduction)->toBe(200_000)
-        ->and($slip->income)->toBe(0)->and($slip->net_pay)->toBe(0);
+    expect($slip->late_deduction)->toBe(100_000)->and($slip->income)->toBe(0);
     $this->actingAs($this->finance)->get(route('slip', $run->id))->assertSee('dibatasi sebesar penghasilan');
 });
 
 it('potongan telat yang lebih kecil dari penghasilan tidak diubah', function () {
-    $this->emp->update(['base_salary' => 0, 'fixed_allowance' => 0, 'commission_bps' => 4000]);
     $this->months = [1];
     fixAttendance(['late' => 2]);
-    fixTicket($this->branch->id, $this->tech->id, 500_000, '2027-01-10');
     $slip = $this->pay->generate($this->finance, $this->branch->id, 2027, 1)->slips()->first();
 
-    expect($slip->late_deduction)->toBe(2 * \App\Domain\Payroll\PayrollSettings::get('late_fee'))
-        ->and($slip->income)->toBe(200_000 - $slip->late_deduction);
+    expect($slip->late_deduction)->toBe(40_000)->and($slip->income)->toBe(5_000_000 - 40_000);
 });

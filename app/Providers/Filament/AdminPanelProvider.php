@@ -36,7 +36,12 @@ class AdminPanelProvider extends PanelProvider
             ->topbar(false)
             ->sidebarWidth('17rem')
             ->maxContentWidth('full')
-            ->navigationGroups(['Operasional', 'Keuangan', 'Karyawan', 'Data master'])
+            ->navigationGroups(['Penjualan', 'Barang', 'Keuangan', 'Karyawan', 'Data master', 'Pengaturan', 'Bantuan'])
+            ->renderHook(\Filament\View\PanelsRenderHook::PAGE_START, function () {
+                $topic = \App\Filament\Pages\Help::TOPIC_BY_PAGE[basename(request()->path())] ?? null;
+
+                return $topic ? '<a href="'.e(\App\Filament\Pages\Help::getUrl().'#'.$topic).'" class="iz-help-link">Bingung? Lihat cara memakai halaman ini</a>' : '';
+            })
             ->renderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn () => '<link rel="stylesheet" href="'.asset('css/izone.css').'?v='.@filemtime(public_path('css/izone.css')).'">')
             ->colors([
                 'primary' => '#0B63F6',

@@ -34,9 +34,9 @@ class StockCounts extends Page implements HasTable
 
     protected static ?string $title = 'Stok opname';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    protected static string|\UnitEnum|null $navigationGroup = 'Barang';
 
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 5;
 
     public static function canAccess(): bool
     {
@@ -115,8 +115,7 @@ class StockCounts extends Page implements HasTable
                 Action::make('mulai')->label('Mulai hitung stok')->modalSubmitActionLabel('Mulai')
                     ->modalDescription('Daftar barang diambil dari stok yang tercatat saat ini. Hasil tiap barang dibandingkan dengan stok sistem saat Anda mengisinya, jadi isi hasilnya segera setelah barang itu dihitung.')
                     ->schema([
-                        Select::make('branch_id')->label('Cabang yang dihitung')->placeholder('Pilih cabang')->required()
-                            ->options(fn () => $user->hasRole('owner') ? Branch::orderBy('name')->pluck('name', 'id') : $user->branches()->orderBy('name')->pluck('branches.name', 'branches.id')),
+                        \App\Support\BranchField::make('Cabang yang dihitung'),
                         TextInput::make('note')->label('Catatan (boleh kosong)')->maxLength(200)->placeholder('Contoh: opname akhir bulan'),
                     ])
                     ->action(fn (array $data) => self::run(fn () => app(StockCountService::class)->start(auth()->user(), (int) $data['branch_id'], now()->toDateString(), null, $data['note'] ?? null), 'Hitungan dimulai')),

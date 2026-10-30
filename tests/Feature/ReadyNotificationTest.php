@@ -72,3 +72,11 @@ it('keeps the progress change and allows a retry when the email fails', function
     $this->svc->updateProgress($t, $this->user, 'siap_diambil');
     expect(RecordingSender::$sent)->toHaveCount(1)->and($t->fresh()->ready_notified_at)->not->toBeNull();
 });
+
+it('also emails the customer when the repair is finished with "Selesai diperbaiki", only once', function () {
+    $t = ($this->receive)(['customer_email' => 'rina@example.com']);
+
+    $this->svc->complete($t, $this->user, now()->toDateString(), [], 100_000, 'kas');
+
+    expect(RecordingSender::$sent)->toHaveCount(1)->and(RecordingSender::$sent[0][0])->toBe('rina@example.com');
+});

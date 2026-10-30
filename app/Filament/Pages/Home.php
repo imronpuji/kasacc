@@ -94,6 +94,36 @@ class Home extends Dashboard
             }
         }
 
+        if ($u->can('post-purchases')) {
+            $overdue = $ops->payablesAging($branch, $today);
+            if ($overdue['overdue'] > 0) {
+                $tasks[] = ['tag' => 'Faktur', 'bg' => '#FDECEA', 'fg' => '#B42318', 'title' => 'Ada faktur pemasok yang lewat jatuh tempo: '.$rp($overdue['overdue']), 'sub' => 'Buka Laporan, pilih "Utang ke pemasok", lalu ajukan pembayaran', 'cta' => 'Lihat', 'url' => PurchaseInvoices::getUrl()];
+            } elseif ($overdue['due_soon'] > 0) {
+                $tasks[] = ['tag' => 'Faktur', 'bg' => '#FEF3E2', 'fg' => '#B45309', 'title' => 'Faktur senilai '.$rp($overdue['due_soon']).' jatuh tempo dalam 7 hari', 'sub' => 'Siapkan uangnya supaya tidak telat bayar', 'cta' => 'Lihat', 'url' => PurchaseInvoices::getUrl()];
+            }
+            $n = $scope(DB::table('supplier_claims'))->where('status', 'open')->count();
+            if ($n) {
+                $tasks[] = ['tag' => 'Klaim', 'bg' => '#FEF3E2', 'fg' => '#B45309', 'title' => $n.' klaim barang rusak menunggu jawaban pemasok', 'sub' => 'Catat hasilnya kalau pemasok sudah menjawab', 'cta' => 'Buka', 'url' => SupplierClaims::getUrl()];
+            }
+        }
+        if ($u->can('post-sales')) {
+            $closed = $scope(DB::table('cash_closings'), 'branch_id')->where('closing_date', $today)->whereIn('status', ['closed', 'pending'])->exists();
+            $soldToday = $scope(DB::table('pos_sales'))->whereNull('voided_at')->where('sold_on', $today)->exists();
+            if ($soldToday && ! $closed && (int) now()->format('G') >= 17) {
+                $tasks[] = ['tag' => 'Kas', 'bg' => '#E8F0FE', 'fg' => '#0B4FC4', 'title' => 'Kas hari ini belum ditutup', 'sub' => 'Hitung uang tunai di laci, lalu isi jumlahnya', 'cta' => 'Tutup kas', 'url' => CashClosings::getUrl()];
+            }
+        }
+        if ($u->can('approve-adjustments')) {
+            $n = DB::table('cash_closings')->where('status', 'pending')->count();
+            if ($n) {
+                $tasks[] = ['tag' => 'Selisih', 'bg' => '#FDECEA', 'fg' => '#B42318', 'title' => $n.' selisih kas menunggu persetujuan', 'sub' => 'Lihat alasannya, lalu setujui atau tolak', 'cta' => 'Tinjau', 'url' => CashClosings::getUrl()];
+            }
+            $n = DB::table('stock_counts')->where('status', 'draft')->whereExists(fn ($q) => $q->from('stock_count_lines')->whereColumn('stock_count_lines.stock_count_id', 'stock_counts.id')->whereNotNull('counted_qty'))->count();
+            if ($n) {
+                $tasks[] = ['tag' => 'Stok', 'bg' => '#FEF3E2', 'fg' => '#B45309', 'title' => $n.' hitungan stok sudah diisi dan menunggu persetujuan', 'sub' => 'Setujui supaya stok di sistem mengikuti hasil hitungan', 'cta' => 'Tinjau', 'url' => StockCounts::getUrl()];
+            }
+        }
+
         $agingView = null;
         if ($aging) {
             $max = max(array_sum($aging['buckets']), 1);
@@ -110,6 +140,20 @@ class Home extends Dashboard
             $quick[] = ['label' => 'Terima HP baru', 'url' => ServiceTickets::getUrl()];
         }
 
-        return ['kpis' => $kpis, 'tasks' => $tasks, 'aging' => $agingView, 'quick' => $u->can('view-reports') ? [] : $quick, 'noKpi' => $kpis === []];
+        $setup = [];
+        if ($u->hasRole('owner')) {
+            $setup = [
+                ['done' => \App\Models\Branch::exists(), 'title' => 'Isi data cabang (toko)', 'sub' => 'Menu Data master, Cabang', 'url' => \App\Filament\Resources\Branches\BranchResource::getUrl()],
+                ['done' => \App\Models\Product::exists(), 'title' => 'Isi daftar barang dan harga jual', 'sub' => 'Menu Data master, Produk', 'url' => \App\Filament\Resources\Products\ProductResource::getUrl()],
+                ['done' => \App\Models\Supplier::exists(), 'title' => 'Isi daftar pemasok (tempat Anda membeli barang)', 'sub' => 'Menu Barang, Pemasok', 'url' => Suppliers::getUrl()],
+                ['done' => DB::table('journals')->exists(), 'title' => 'Catat uang awal toko (modal)', 'sub' => 'Menu Keuangan, Modal, pinjaman, dan harta', 'url' => RecordFinance::getUrl()],
+                ['done' => \App\Models\Employee::exists(), 'title' => 'Isi data karyawan', 'sub' => 'Menu Karyawan, Karyawan dan absensi', 'url' => Employees::getUrl()],
+            ];
+            if (collect($setup)->every(fn ($x) => $x['done'])) {
+                $setup = [];
+            }
+        }
+
+        return ['kpis' => $kpis, 'tasks' => $tasks, 'aging' => $agingView, 'quick' => $u->can('view-reports') ? [] : $quick, 'noKpi' => $kpis === [], 'setup' => $setup];
     }
 }

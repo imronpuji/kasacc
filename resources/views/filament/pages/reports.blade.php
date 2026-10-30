@@ -152,7 +152,7 @@
             </table>
         </section>
         <section class="iz-card ">
-            <h2 style="margin-bottom:8px">Servis selesai per teknisi</h2>
+            <h2 class="iz-mb-8">Servis selesai per teknisi</h2>
             <table class="lp-t lp-grid">
                 <tr class="h"><td>Teknisi</td><td class="n">Jumlah servis</td><td class="n">Ongkos jasa</td><td class="n">Suku cadang</td><td class="n">Total</td></tr>
                 @forelse ($ops['technicians'] as $r)
@@ -164,7 +164,7 @@
         </section>
     @elseif ($report === 'kas')
         <section class="iz-card " id="arus-kas">
-            <h2 style="margin-bottom:4px">Arus kas (uang masuk dan keluar)</h2>
+            <h2 class="iz-mb-4">Arus kas (uang masuk dan keluar)</h2>
             <div class="iz-task-sub" style="margin-bottom:12px">Uang di kas dan bank. Saldo awal {{ $rpp($ops['cashflow']['opening']) }}</div>
             <table class="lp-t">
                 <tr class="h"><td>Dari mana</td><td class="n">Masuk</td><td class="n">Keluar</td></tr>
@@ -177,11 +177,11 @@
         </section>
     @elseif ($report === 'utang')
         <section class="iz-card " id="utang">
-            <h2 style="margin-bottom:4px">Utang ke pemasok menurut lamanya</h2>
+            <h2 class="iz-mb-4">Utang ke pemasok menurut lamanya</h2>
             <div class="iz-task-sub" style="margin-bottom:16px">Per {{ $toLabel }}. Pembayaran dianggap melunasi pembelian yang paling lama lebih dulu.</div>
             @foreach ($ops['aging']['buckets'] as $i => $v)
-                <div style="margin-bottom:14px">
-                    <div style="display:flex;justify-content:space-between;font-size:14px"><span>{{ $buckets[$i] ?? $i }}</span><span style="font-weight:600;font-variant-numeric:tabular-nums">{{ $rpp($v) }}</span></div>
+                <div class="iz-mb-14">
+                    <div class="iz-split"><span>{{ $buckets[$i] ?? $i }}</span><span class="iz-num">{{ $rpp($v) }}</span></div>
                     <div class="iz-bar"><div style="background:{{ $bucketColors[$i] ?? '#0B63F6' }};width:{{ round($v / $bucketMax * 100) }}%"></div></div>
                 </div>
             @endforeach
@@ -208,7 +208,7 @@
     @elseif ($report === 'masalah')
         @php $pb = $ops['problems']; @endphp
         <section class="iz-card ">
-            <h2 style="margin-bottom:4px">Refund dan komplain</h2>
+            <h2 class="iz-mb-4">Refund dan komplain</h2>
             <div class="iz-task-sub" style="margin-bottom:12px">{{ $fromLabel }} sampai {{ $toLabel }}</div>
             <table class="lp-t">
                 <tr class="h"><td>Jenis</td><td class="n">Jumlah</td><td class="n">Nilai</td></tr>
@@ -224,7 +224,7 @@
             <p class="iz-task-sub" style="margin:10px 0 0">{{ $pb['receipts'] }} struk dibuat pada tanggal ini; {{ $pb['void_count'] }} struk dibatalkan pada tanggal ini (bisa struk dari hari sebelumnya). {{ $pb['services_done'] }} servis selesai, {{ count($pb['warranty']) }} klaim garansi.</p>
         </section>
         <section class="iz-card ">
-            <h2 style="margin-bottom:8px">Struk yang dibatalkan</h2>
+            <h2 class="iz-mb-8">Struk yang dibatalkan</h2>
             <table class="lp-t lp-grid">
                 <tr class="h"><td>Nomor struk</td><td>Dibatalkan</td><td>Alasan</td><td class="n">Nilai</td></tr>
                 @forelse ($pb['voids'] as $r)
@@ -235,7 +235,7 @@
             </table>
         </section>
         <section class="iz-card ">
-            <h2 style="margin-bottom:8px">Servis batal dan klaim garansi</h2>
+            <h2 class="iz-mb-8">Servis batal dan klaim garansi</h2>
             <table class="lp-t lp-grid">
                 <tr class="h"><td>Kode</td><td>Pelanggan</td><td>Perangkat</td><td>Keterangan</td><td class="n">Nilai</td></tr>
                 @foreach ($pb['cancels'] as $r)
@@ -251,7 +251,7 @@
         </section>
     @elseif ($report === 'bukti')
         <section class="iz-card " id="bukti-potong">
-            <h2 style="margin-bottom:4px">Bukti potong PPh 21 tahun {{ $buktiYear }}</h2>
+            <h2 class="iz-mb-4">Bukti potong PPh 21 tahun {{ $buktiYear }}</h2>
             <div class="iz-task-sub" style="margin-bottom:16px">Dijumlah dari gaji yang sudah disetujui atau dibayar. Tahun diambil dari tanggal akhir periode. Bahan untuk mengisi bukti potong 1721-A1.</div>
             @if ($bukti)
                 <table class="lp-t lp-grid">
@@ -267,7 +267,7 @@
         </section>
     @else
         <section class="iz-card ">
-            <h2 style="margin-bottom:12px">Catatan per akun</h2>
+            <h2 class="iz-mb-12">Catatan per akun</h2>
             <div class="lp-field" style="margin-bottom:12px">
                 <label>Pilih akun</label>
                 <x-filament::input.wrapper>
@@ -287,8 +287,8 @@
             </table>
         </section>
         <section class="iz-card ">
-            <h2 style="margin-bottom:12px">Riwayat stok{{ $ops['stockBranchName'] ? ' — '.$ops['stockBranchName'] : '' }}</h2>
-                        <div style="margin-bottom:12px">{{ $this->form }}</div>
+            <h2 class="iz-mb-12">Riwayat stok{{ $ops['stockBranchName'] ? ' — '.$ops['stockBranchName'] : '' }}</h2>
+                        <div class="iz-mb-12">{{ $this->form }}</div>
             @if ($ops['stockCard'])
                 <table class="lp-t lp-grid">
                     <tr class="h"><td>Tanggal</td><td>Alasan</td><td class="n">Masuk / keluar</td><td class="n">Nilai barang</td><td class="n">Sisa stok</td><td class="n">Nilai sisa stok</td></tr>
@@ -301,7 +301,7 @@
             @endif
         </section>
     <section class="iz-card" id="neraca-saldo">
-        <h2 style="margin-bottom:4px">Cek keseimbangan catatan</h2>
+        <h2 class="iz-mb-4">Cek keseimbangan catatan</h2>
         <div class="iz-task-sub" style="margin-bottom:8px">Daftar semua akun yang ada isinya. Kedua total harus sama. Kalau beda, ada catatan yang salah.</div>
         <table class="lp-t lp-grid">
             <tr class="h"><td>Akun</td><td class="n">Uang masuk ke akun</td><td class="n">Uang keluar dari akun</td></tr>

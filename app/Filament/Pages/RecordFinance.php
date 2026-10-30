@@ -67,7 +67,7 @@ class RecordFinance extends Page
 
         return array_merge($f, [
             DatePicker::make('date')->label('Tanggal')->default(now(config('kasir.timezone')))->required(),
-            Select::make('branch_id')->label('Untuk cabang mana?')->required()->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))->default(fn () => Branch::orderBy('id')->value('id')),
+            \App\Support\BranchField::make('Untuk cabang mana?', true),
             Textarea::make('note')->label('Catatan (boleh dikosongkan)')->rows(2)->maxLength(200)->autocomplete(false),
         ]);
     }
@@ -112,7 +112,7 @@ class RecordFinance extends Page
             Select::make('to')->label('Dipindah ke')->required()->native(false)->options($opts)->default('kas'),
             TextInput::make('amount')->label('Berapa rupiah?')->numeric()->minValue(1)->required()->prefix('Rp')->helperText('Angka saja, tanpa titik.'),
             DatePicker::make('date')->label('Tanggal')->default(now(config('kasir.timezone')))->required(),
-            Select::make('branch_id')->label('Untuk cabang mana?')->required()->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))->default(fn () => Branch::orderBy('id')->value('id')),
+            \App\Support\BranchField::make('Untuk cabang mana?', true),
         ], fn ($t, $d) => $t->transferCash((int) $d['branch_id'], $d['date'], (int) $d['amount'], $d['from'], $d['to']), 'Uang sudah dipindahkan.');
     }
 
@@ -130,7 +130,7 @@ class RecordFinance extends Page
             TextInput::make('interest')->label('Bunga (Rp)')->numeric()->minValue(0)->default(0)->required()->prefix('Rp')->helperText('Bagian bunga di tagihan cicilan. Isi 0 kalau tidak ada.'),
             Select::make('method')->label('Dibayar dari mana?')->required()->native(false)->default('bank')->options(fn () => MoneyAccounts::options()),
             DatePicker::make('date')->label('Tanggal bayar')->default(now(config('kasir.timezone')))->required(),
-            Select::make('branch_id')->label('Untuk cabang mana?')->required()->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))->default(fn () => Branch::orderBy('id')->value('id')),
+            \App\Support\BranchField::make('Untuk cabang mana?', true),
             Textarea::make('note')->label('Catatan (boleh dikosongkan)')->rows(2)->maxLength(200)->autocomplete(false),
         ], fn ($t, $d) => $t->repayLoan((int) $d['branch_id'], $d['date'], (int) $d['principal'], (int) $d['interest'], $d['method'], (string) ($d['note'] ?? '')), 'Cicilan pinjaman sudah dicatat.');
     }

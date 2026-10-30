@@ -31,8 +31,8 @@
     <div class="ks-grid">
         <div class="ks-left">
             @if ($branches->count() > 1)
-                <label style="display:flex;flex-direction:column;gap:4px">
-                    <span style="font-size:14px;font-weight:600">Cabang</span>
+                <label class="iz-stack-4">
+                    <span class="iz-strong">Cabang</span>
                     <x-filament::input.wrapper>
                         <x-filament::input.select wire:model.live="branchId">
                             @foreach ($branches as $b)<option value="{{ $b->id }}">{{ $b->name }}</option>@endforeach
@@ -40,8 +40,8 @@
                     </x-filament::input.wrapper>
                 </label>
             @endif
-            <label style="display:flex;flex-direction:column;gap:4px">
-                <span style="font-size:14px;font-weight:600">Cari barang</span>
+            <label class="iz-stack-4">
+                <span class="iz-strong">Cari barang</span>
                 <x-filament::input.wrapper>
                     <x-filament::input type="text" wire:model.live.debounce.250ms="search" autofocus placeholder="Contoh: layar iPhone 11 atau scan barcode" />
                 </x-filament::input.wrapper>
@@ -81,12 +81,12 @@
             @endforeach
 
             @if ($this->discount > 0)
-                <div style="display:flex;justify-content:space-between;font-size:14px"><span>Jumlah belanja</span><span>Rp {{ number_format($this->total, 0, ',', '.') }}</span></div>
+                <div class="iz-split"><span>Jumlah belanja</span><span>Rp {{ number_format($this->total, 0, ',', '.') }}</span></div>
                 <div style="display:flex;justify-content:space-between;font-size:14px;color:#0E7A4F"><span>Potongan {{ number_format($this->redeemCount, 0, ',', '.') }} poin</span><span>-Rp {{ number_format($this->discount, 0, ',', '.') }}</span></div>
             @endif
             <div class="ks-total"><span style="font-size:16px;font-weight:600">Total yang harus dibayar</span><span>Rp {{ number_format($this->payable, 0, ',', '.') }}</span></div>
 
-            <div style="font-size:14px;font-weight:600">Pelanggan bayar dengan</div>
+            <div class="iz-strong">Pelanggan bayar dengan</div>
             <div class="ks-pay">
                 @foreach (\App\Domain\Accounting\MoneyAccounts::options(['qris' => 'QRIS']) as $k => $label)
                     <label class="{{ $method === $k ? 'on' : '' }}">
@@ -96,8 +96,8 @@
             </div>
             <div class="ks-muted">{{ ['kas' => 'Uang tunai masuk laci kas.', 'bank' => 'Transfer masuk rekening toko.', 'qris' => 'QRIS masuk rekening toko, dipotong biaya QRIS '.$this->qrisRate.'%.'][$method] ?? 'Uang masuk ke '.\App\Domain\Accounting\MoneyAccounts::label($method).'.' }}</div>
 
-            <label style="display:flex;flex-direction:column;gap:4px">
-                <span style="font-size:14px;font-weight:600">Email atau nomor HP pelanggan (boleh dikosongkan)</span>
+            <label class="iz-stack-4">
+                <span class="iz-strong">Email atau nomor HP pelanggan (boleh dikosongkan)</span>
                 <x-filament::input.wrapper>
                     <x-filament::input type="text" wire:model.blur="customerContact" placeholder="Contoh: budi@email.com atau 081234567890" />
                 </x-filament::input.wrapper>
@@ -106,8 +106,8 @@
             @if ($this->member)
                 <div class="ks-muted" style="color:#0B4FC4;font-weight:600">{{ $this->member->name }}: {{ number_format($this->memberPoints, 0, ',', '.') }} poin</div>
                 @if ($this->maxPoints > 0 && ! empty($cart))
-                    <label style="display:flex;flex-direction:column;gap:4px">
-                        <span style="font-size:14px;font-weight:600">Pakai poin (boleh dikosongkan)</span>
+                    <label class="iz-stack-4">
+                        <span class="iz-strong">Pakai poin (boleh dikosongkan)</span>
                         <x-filament::input.wrapper>
                             <x-filament::input type="text" inputmode="numeric" wire:model.live.debounce.300ms="redeemPoints" placeholder="Paling banyak {{ number_format($this->maxPoints, 0, ',', '.') }}" />
                         </x-filament::input.wrapper>
@@ -117,8 +117,8 @@
             @endif
 
             @if ($method === 'kas' && ! empty($cart))
-                <label style="display:flex;flex-direction:column;gap:4px">
-                    <span style="font-size:14px;font-weight:600">Uang diterima (boleh dikosongkan)</span>
+                <label class="iz-stack-4">
+                    <span class="iz-strong">Uang diterima (boleh dikosongkan)</span>
                     <x-filament::input.wrapper prefix="Rp">
                         <x-filament::input type="text" inputmode="numeric" wire:model.live.debounce.300ms="cashReceived" placeholder="Contoh: 200000" />
                     </x-filament::input.wrapper>

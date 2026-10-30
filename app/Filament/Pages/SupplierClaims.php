@@ -33,9 +33,9 @@ class SupplierClaims extends Page implements HasTable
 
     protected static ?string $title = 'Klaim pemasok';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    protected static string|\UnitEnum|null $navigationGroup = 'Barang';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 4;
 
     private const STATUS = ['open' => 'Menunggu pemasok', 'replaced' => 'Diganti baru', 'refunded' => 'Uang kembali', 'rejected' => 'Ditolak (rugi)'];
 

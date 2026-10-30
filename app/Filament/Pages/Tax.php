@@ -31,7 +31,7 @@ class Tax extends Page implements HasTable
 
     protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 6;
 
     public string $bulan = '';
 

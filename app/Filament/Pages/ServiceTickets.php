@@ -35,9 +35,14 @@ class ServiceTickets extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Servis';
 
-    protected static ?string $title = 'Servis iPhone';
+    protected static ?string $title = 'Servis';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    public function getSubheading(): ?string
+    {
+        return 'Catat HP pelanggan yang masuk servis, ikuti prosesnya sampai selesai, lalu cetak nota. Pelanggan bisa melacak servisnya lewat link di email.';
+    }
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Penjualan';
 
     protected static ?int $navigationSort = 2;
 
@@ -105,8 +110,20 @@ class ServiceTickets extends Page implements HasTable
             ->headerActions([
                 Action::make('terima')->label('Terima HP baru')->modalHeading('Terima HP baru')->modalSubmitActionLabel('Simpan dan buat nomor servis')
                     ->schema([
-                        Select::make('branch_id')->label('Cabang')->required()->options($branchOptions)
-                            ->default(fn () => $branchOptions()->keys()->first())->visible(fn () => $branchOptions()->count() > 1),
+                        \App\Support\BranchField::make(),
+                        Select::make('existing_customer')->label('Pelanggan lama? Cari di sini (boleh dilewati)')->searchable()->live()->dehydrated(false)
+                            ->placeholder('Ketik nama, nomor HP, atau email')
+                            ->getSearchResultsUsing(fn (string $search) => \App\Models\Customer::where(fn ($q) => $q->where('name', 'ilike', "%{$search}%")->orWhere('phone', 'like', "%{$search}%")->orWhere('email', 'ilike', "%{$search}%"))->orderBy('name')->limit(15)->get()
+                                ->mapWithKeys(fn ($c) => [$c->id => $c->name.($c->phone ? ' · '.$c->phone : '')])->all())
+                            ->getOptionLabelUsing(fn ($value) => \App\Models\Customer::find($value)?->name)
+                            ->afterStateUpdated(function ($state, $set) {
+                                if ($c = \App\Models\Customer::find($state)) {
+                                    $set('customer_name', $c->name);
+                                    $set('customer_phone', $c->phone);
+                                    $set('customer_email', $c->email);
+                                }
+                            })
+                            ->helperText('Kalau pelanggan pernah ke sini, nama, nomor HP, dan emailnya terisi sendiri.'),
                         TextInput::make('customer_name')->label('Nama pelanggan')->placeholder('Contoh: Budi Santoso')->required(),
                         TextInput::make('customer_phone')->label('Nomor WhatsApp / HP')->tel()->placeholder('Contoh: 081234567890')->helperText('Dipakai untuk menghubungi pelanggan kalau HP sudah selesai.'),
                         TextInput::make('customer_email')->label('Email pelanggan')->email()->placeholder('Contoh: budi@email.com')->helperText('Isi supaya pelanggan bisa masuk melihat servisnya (kode masuk dikirim ke email). Boleh kosong.'),

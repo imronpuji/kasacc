@@ -90,7 +90,7 @@ class Payroll extends Page implements HasTable
             ])
             ->headerActions([
                 Action::make('hitung')->label('Hitung gaji bulan ini')->modalSubmitActionLabel('Hitung gaji')->schema([
-                    Select::make('branch_id')->label('Cabang')->placeholder('Pilih cabang')->options(fn () => Branch::pluck('name', 'id'))->required()->helperText('Gaji dihitung untuk semua karyawan yang masih bekerja di cabang ini.'),
+                    \App\Support\BranchField::make('Cabang', true)->helperText('Gaji dihitung untuk semua karyawan yang masih bekerja di cabang ini.'),
                     Select::make('month')->label('Bulan gaji')->options(self::months())->default((int) now()->month)->required()->helperText('Absen bulan itu harus sudah diisi untuk semua karyawan.'),
                     TextInput::make('year')->label('Tahun gaji')->placeholder('Contoh: '.now()->year)->numeric()->default((int) now()->year)->required(),
                     \Filament\Forms\Components\Toggle::make('with_thr')->label('Termasuk THR bulan ini')->default(false)

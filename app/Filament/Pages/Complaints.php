@@ -33,9 +33,14 @@ class Complaints extends Page implements HasTable
 
     protected static ?string $title = 'Komplain pelanggan';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    public function getSubheading(): ?string
+    {
+        return 'Catat keluhan pelanggan, lalu tangani sampai selesai supaya tidak ada yang terlupa.';
+    }
 
-    protected static ?int $navigationSort = 5;
+    protected static string|\UnitEnum|null $navigationGroup = 'Penjualan';
+
+    protected static ?int $navigationSort = 4;
 
     public static function canAccess(): bool
     {
@@ -53,6 +58,37 @@ class Complaints extends Page implements HasTable
             report($e);
             Notification::make()->title('Belum berhasil')->body('Terjadi kesalahan. Coba lagi, kalau masih gagal hubungi pemilik toko.')->danger()->send();
         }
+    }
+
+    private static function branchIds(?int $branchId): array
+    {
+        return $branchId ? [$branchId] : array_keys(\App\Support\BranchField::options());
+    }
+
+    /** Servis terbaru di cabang yang dipilih, bisa dicari dengan nomor, nama pelanggan, atau HP. */
+    private static function ticketSelect(): Select
+    {
+        $label = fn (\App\Models\ServiceTicket $t) => $t->code.' · '.$t->customer_name.' · '.$t->device;
+        $query = fn ($get) => \App\Models\ServiceTicket::query()->whereIn('branch_id', self::branchIds($get('branch_id') ? (int) $get('branch_id') : null))->latest('id');
+
+        return Select::make('ticket_code')->label('Nomor servis (boleh kosong)')->searchable()->placeholder('Pilih, atau ketik nomor, nama, atau HP')
+            ->getSearchResultsUsing(fn (string $search, $get) => $query($get)->where(fn ($q) => $q->where('code', 'ilike', "%{$search}%")->orWhere('customer_name', 'ilike', "%{$search}%")->orWhere('customer_phone', 'like', "%{$search}%"))->limit(20)->get()->mapWithKeys(fn ($t) => [$t->code => $label($t)])->all())
+            ->options(fn ($get) => $query($get)->limit(20)->get()->mapWithKeys(fn ($t) => [$t->code => $label($t)])->all())
+            ->getOptionLabelUsing(fn ($value) => ($t = \App\Models\ServiceTicket::where('code', $value)->first()) ? $label($t) : $value)
+            ->helperText('Ada di nota servis.');
+    }
+
+    /** Struk terbaru di cabang yang dipilih, bisa dicari dengan nomor atau jumlah uang. */
+    private static function receiptSelect(): Select
+    {
+        $label = fn (\App\Models\PosSale $s) => $s->receipt_no.' · '.$s->sold_on->format('d/m/Y').' · Rp'.number_format((int) $s->total, 0, ',', '.');
+        $query = fn ($get) => \App\Models\PosSale::query()->whereIn('branch_id', self::branchIds($get('branch_id') ? (int) $get('branch_id') : null))->latest('id');
+
+        return Select::make('receipt_no')->label('Nomor struk (boleh kosong)')->searchable()->placeholder('Pilih, atau ketik nomor atau jumlah uangnya')
+            ->getSearchResultsUsing(fn (string $search, $get) => $query($get)->where(fn ($q) => $q->where('receipt_no', 'ilike', "%{$search}%")->orWhereRaw('CAST(total AS TEXT) LIKE ?', ["%{$search}%"]))->limit(20)->get()->mapWithKeys(fn ($x) => [$x->receipt_no => $label($x)])->all())
+            ->options(fn ($get) => $query($get)->limit(20)->get()->mapWithKeys(fn ($x) => [$x->receipt_no => $label($x)])->all())
+            ->getOptionLabelUsing(fn ($value) => ($x = \App\Models\PosSale::where('receipt_no', $value)->first()) ? $label($x) : $value)
+            ->helperText('Ada di bagian atas struk.');
     }
 
     public function table(Table $table): Table
@@ -82,15 +118,17 @@ class Complaints extends Page implements HasTable
             ->headerActions([
                 Action::make('catat')->label('Catat komplain')->modalSubmitActionLabel('Simpan komplain')
                     ->schema([
-                        Select::make('branch_id')->label('Cabang')->required()->options($branchOptions)
-                            ->default(fn () => $branchOptions()->keys()->first())->visible(fn () => $branchOptions()->count() > 1),
+                        \App\Support\BranchField::make()->live(),
                         Select::make('type')->label('Jenis komplain')->options(ComplaintService::TYPES)->required(),
                         Textarea::make('description')->label('Cerita keluhan pelanggan')->required()->rows(3)->maxLength(1000),
-                        TextInput::make('ticket_code')->label('Nomor servis (boleh kosong)')->placeholder('Contoh: SRV-PUSAT-20271001-001')->helperText('Ada di nota servis.'),
-                        TextInput::make('receipt_no')->label('Nomor struk (boleh kosong)')->placeholder('Contoh: POS-PUSAT-20271001-0007')->helperText('Ada di bagian atas struk.'),
-                        Select::make('customer_id')->label('Pelanggan (boleh kosong)')->searchable()->placeholder('Ketik nama atau nomor HP')
-                            ->getSearchResultsUsing(fn (string $s) => Customer::where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%")->limit(20)->pluck('name', 'id'))
-                            ->helperText('Kalau nomor servis atau struk diisi dan punya pelanggan, pelanggan diambil otomatis.'),
+                        self::ticketSelect(),
+                        self::receiptSelect(),
+                        Select::make('customer_id')->label('Pelanggan (boleh kosong)')->searchable()->placeholder('Pilih, atau ketik nama atau nomor HP')
+                            ->getSearchResultsUsing(fn (string $search) => Customer::where(fn ($q) => $q->where('name', 'ilike', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"))->orderBy('name')->limit(20)->get()
+                                ->mapWithKeys(fn ($c) => [$c->id => $c->name.($c->phone ? ' · '.$c->phone : '')])->all())
+                            ->options(fn () => Customer::orderBy('name')->limit(20)->get()->mapWithKeys(fn ($c) => [$c->id => $c->name.($c->phone ? ' · '.$c->phone : '')])->all())
+                            ->getOptionLabelUsing(fn ($value) => ($c = Customer::find($value)) ? $c->name.($c->phone ? ' · '.$c->phone : '') : $value)
+                            ->helperText('Kalau nomor servis atau struk dipilih dan punya pelanggan, pelanggan diambil otomatis.'),
                     ])
                     ->action(function (array $data) use ($branchOptions) {
                         $branchId = (int) ($data['branch_id'] ?? $branchOptions()->keys()->first());

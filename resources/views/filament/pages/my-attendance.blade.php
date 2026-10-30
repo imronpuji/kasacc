@@ -33,7 +33,7 @@
         </section>
 
         <section class="iz-card iz-grow-15">
-            <h2 style="margin-bottom:8px">Riwayat absen 10 hari terakhir</h2>
+            <h2 class="iz-mb-8">Riwayat absen 10 hari terakhir</h2>
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
             <table class="lp-t lp-grid" style="min-width:320px;font-size:14px">
                 <tr class="h"><td>Tanggal</td><td>Masuk</td><td>Pulang</td><td>Keterangan</td></tr>

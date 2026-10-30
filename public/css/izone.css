@@ -67,7 +67,7 @@ select.fi-select-input{min-height:48px;font-size:16px!important}
 .iz-kpis{display:flex;flex-wrap:wrap;gap:16px}
 .iz-kpi{flex:1 1 220px;display:flex;flex-direction:column;gap:6px;padding:20px 22px}
 .iz-kpi-label{font-size:14px;color:var(--iz-muted);font-weight:500}
-.iz-kpi-value{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.iz-kpi-value{white-space:nowrap;font-size:clamp(22px,2.1vw,28px);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .iz-kpi-note{font-size:13px;font-weight:500}
 .iz-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
 .iz-grow-15{flex:1.5 1 420px;min-width:0}.iz-grow-1{flex:1 1 300px;min-width:0}
@@ -259,3 +259,18 @@ body{-webkit-text-size-adjust:100%;overflow-x:hidden}
   .lp-hero em{font-size:32px}
   .lp-dates{grid-template-columns:1fr}
 }
+
+/* Tautan bantuan di atas tiap halaman */
+.iz-help-link{display:inline-flex;align-items:center;min-height:44px;font-size:14px;font-weight:600;color:var(--iz-blue);text-decoration:none}
+.iz-help-link:hover{text-decoration:underline}
+
+/* Kelas bantu (pengganti gaya langsung di tampilan) */
+.iz-mb-4{margin-bottom:4px}.iz-mb-8{margin-bottom:8px}.iz-mb-12{margin-bottom:12px}.iz-mb-14{margin-bottom:14px}.iz-mb-16{margin-bottom:16px}
+.iz-mt-14{margin-top:14px}.iz-mt-16{margin-top:16px}
+.iz-right{text-align:right}
+.iz-strong{font-size:14px;font-weight:600}
+.iz-stack-4{display:flex;flex-direction:column;gap:4px}
+.iz-split{display:flex;justify-content:space-between;font-size:14px}
+.iz-num{font-weight:600;font-variant-numeric:tabular-nums}
+.iz-steps{margin:0;padding-left:24px;list-style:decimal;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.55}
+.iz-steps li::marker{font-weight:700;color:var(--iz-blue)}

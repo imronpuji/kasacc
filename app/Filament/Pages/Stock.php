@@ -33,9 +33,14 @@ class Stock extends Page implements HasTable
 
     protected static ?string $title = 'Stok dan pembelian';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    public function getSubheading(): ?string
+    {
+        return 'Lihat stok tiap barang. Tombol di atas dipakai saat membeli barang, mengembalikan barang ke pemasok, atau memindahkan stok ke cabang lain.';
+    }
 
-    protected static ?int $navigationSort = 3;
+    protected static string|\UnitEnum|null $navigationGroup = 'Barang';
+
+    protected static ?int $navigationSort = 1;
 
     public static function canAccess(): bool
     {

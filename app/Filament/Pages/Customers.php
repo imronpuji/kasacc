@@ -31,9 +31,9 @@ class Customers extends Page implements HasTable
 
     protected static ?string $title = 'Pelanggan';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    protected static string|\UnitEnum|null $navigationGroup = 'Penjualan';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 3;
 
     public function getSubheading(): ?string
     {

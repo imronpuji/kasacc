@@ -32,9 +32,9 @@ class Suppliers extends Page implements HasTable
 
     protected static ?string $title = 'Pemasok';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    protected static string|\UnitEnum|null $navigationGroup = 'Barang';
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 3;
 
     public function getSubheading(): ?string
     {

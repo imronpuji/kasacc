@@ -7,6 +7,20 @@
         </div>
     @endif
 
+    @if (! empty($setup))
+        <section class="iz-card" style="border-color:#B9D2FF">
+            <div class="iz-card-head"><h2>Mulai dari sini</h2><span>{{ collect($setup)->where('done', true)->count() }} dari {{ count($setup) }} selesai</span></div>
+            <div class="iz-task-sub" style="margin-bottom:8px">Lengkapi langkah ini supaya toko Anda siap dipakai. Kerjakan berurutan dari atas.</div>
+            @foreach ($setup as $i => $x)
+                <div class="iz-task">
+                    <span class="iz-pill" style="background:{{ $x['done'] ? '#E6F4EC' : '#E8F0FE' }};color:{{ $x['done'] ? '#0E7A4F' : '#0B4FC4' }}">{{ $x['done'] ? 'Sudah' : 'Langkah '.($i + 1) }}</span>
+                    <div class="iz-task-body"><div class="iz-task-title">{{ $x['title'] }}</div><div class="iz-task-sub">{{ $x['sub'] }}</div></div>
+                    @unless ($x['done'])<a href="{{ $x['url'] }}" class="iz-link">Isi sekarang</a>@endunless
+                </div>
+            @endforeach
+        </section>
+    @endif
+
     <div class="iz-kpis">
         @foreach ($kpis as $k)
             <div class="iz-card iz-kpi">
@@ -39,8 +53,8 @@
                 <div class="iz-empty">Tidak ada utang ke pemasok. Semua pembelian sudah lunas.</div>
             @endif
             @foreach ($aging as $a)
-                <div style="margin-bottom:14px">
-                    <div style="display:flex;justify-content:space-between;font-size:14px"><span>{{ $a['label'] }}</span><span style="font-weight:600;font-variant-numeric:tabular-nums">{{ $a['value'] }}</span></div>
+                <div class="iz-mb-14">
+                    <div class="iz-split"><span>{{ $a['label'] }}</span><span class="iz-num">{{ $a['value'] }}</span></div>
                     <div class="iz-bar"><div style="background:{{ $a['color'] }};width:{{ $a['pct'] }}"></div></div>
                 </div>
             @endforeach

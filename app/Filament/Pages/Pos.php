@@ -27,7 +27,12 @@ class Pos extends Page
 
     protected static ?string $title = 'Kasir';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    public function getSubheading(): ?string
+    {
+        return 'Ketuk barang yang dibeli pelanggan, pilih cara bayar, lalu tekan "Selesaikan pembayaran". Struk bisa langsung dicetak.';
+    }
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Penjualan';
 
     protected static ?int $navigationSort = 1;
 
@@ -203,6 +208,33 @@ class Pos extends Page
         return $this->total - $this->discount;
     }
 
+    /** Pilih struk dari daftar (bukan mengetik nomornya): struk terbaru yang belum dibatalkan, bisa dicari dengan nomor atau jumlah uang. */
+    private static function receiptSelect(): \Filament\Forms\Components\Select
+    {
+        $label = fn (\App\Models\PosSale $s) => $s->receipt_no.' · '.$s->sold_on->format('d/m/Y').' · Rp'.number_format((int) $s->total, 0, ',', '.');
+        $query = function () {
+            $user = auth()->user();
+
+            return \App\Models\PosSale::query()->whereNull('voided_at')
+                ->when(! $user->hasRole('owner'), fn ($q) => $q->whereIn('branch_id', $user->branches()->pluck('branches.id')))
+                ->latest('id');
+        };
+
+        return \Filament\Forms\Components\Select::make('receipt_no')->label('Struk yang mana?')->required()->searchable()->placeholder('Pilih struk, atau ketik nomor atau jumlah uangnya')
+            ->getSearchResultsUsing(fn (string $search) => $query()->where(fn ($q) => $q->where('receipt_no', 'ilike', "%{$search}%")->orWhereRaw('CAST(total AS TEXT) LIKE ?', ["%{$search}%"]))->limit(20)->get()->mapWithKeys(fn ($s) => [$s->receipt_no => $label($s)])->all())
+            ->options(fn () => $query()->limit(20)->get()->mapWithKeys(fn ($s) => [$s->receipt_no => $label($s)])->all())
+            ->getOptionLabelUsing(fn ($value) => ($s = \App\Models\PosSale::where('receipt_no', $value)->first()) ? $label($s) : $value)
+            ->helperText('Nomor struk ada di bagian atas struk yang dicetak.');
+    }
+
+    /** Barang yang ada di struk terpilih, supaya kasir tidak salah memilih barang yang tidak dibeli pelanggan. */
+    private static function receiptProducts(?string $receiptNo): array
+    {
+        $sale = $receiptNo ? \App\Models\PosSale::with('items.product')->where('receipt_no', $receiptNo)->first() : null;
+
+        return $sale ? $sale->items->mapWithKeys(fn ($i) => [$i->product_id => ($i->product?->name ?? 'Barang').' (dibeli '.$i->qty.')'])->all() : [];
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -212,12 +244,12 @@ class Pos extends Page
                 ->modalDescription('Pelanggan mengembalikan sebagian barang. Uang yang dikembalikan sebesar harga barang itu (dikurangi bagian potongan poin kalau ada). Barang bagus kembali ke stok; barang rusak jadi klaim ke pemasok.')
                 ->modalSubmitActionLabel('Simpan retur')
                 ->schema([
-                    TextInput::make('receipt_no')->label('Nomor struk')->placeholder('Contoh: POS-PUSAT-20271001-0007')->required()
-                        ->helperText('Nomor ada di bagian atas struk yang dicetak.'),
+                    self::receiptSelect()->live(),
                     Textarea::make('reason')->label('Alasan retur')->placeholder('Contoh: ukuran tidak cocok')->required()->maxLength(200),
                     \Filament\Forms\Components\Repeater::make('items')->label('Barang yang dikembalikan')->addActionLabel('Tambah barang')->minItems(1)->defaultItems(1)->required()
                         ->schema([
-                            \Filament\Forms\Components\Select::make('product_id')->label('Barang')->options(fn () => \App\Models\Product::orderBy('name')->pluck('name', 'id'))->searchable()->required()->placeholder('Pilih barang'),
+                            \Filament\Forms\Components\Select::make('product_id')->label('Barang')->searchable()->required()->placeholder('Pilih barang di struk ini')
+                                ->options(fn ($get) => self::receiptProducts($get('../../receipt_no'))),
                             TextInput::make('qty')->label('Jumlah')->numeric()->integer()->minValue(1)->default(1)->required(),
                             \Filament\Forms\Components\Toggle::make('defective')->label('Rusak (klaim ke pemasok)')->default(false),
                         ])->columns(3),
@@ -243,8 +275,7 @@ class Pos extends Page
                 ->modalHeading('Batalkan struk')->modalDescription('Seluruh isi struk dibatalkan: uang dikembalikan ke pelanggan dan stok barang kembali (kecuali barang rusak). Tidak bisa dibatalkan lagi.')
                 ->modalSubmitActionLabel('Ya, batalkan struk')
                 ->schema([
-                    TextInput::make('receipt_no')->label('Nomor struk')->placeholder('Contoh: POS-PUSAT-20271001-0007')->required()
-                        ->helperText('Nomor ada di bagian atas struk yang dicetak.'),
+                    self::receiptSelect(),
                     Textarea::make('reason')->label('Alasan pembatalan')->placeholder('Contoh: pelanggan batal beli, atau salah input barang')->required()->maxLength(200),
                     \Filament\Forms\Components\Repeater::make('defective')->label('Barang yang dikembalikan dalam keadaan rusak (boleh dikosongkan)')
                         ->helperText('Barang rusak tidak masuk stok bagus. Barangnya otomatis jadi klaim ke pemasok di menu Klaim pemasok.')

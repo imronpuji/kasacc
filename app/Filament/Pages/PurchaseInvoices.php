@@ -37,9 +37,9 @@ class PurchaseInvoices extends Page implements HasTable
 
     protected static ?string $title = 'Faktur pembelian';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    protected static string|\UnitEnum|null $navigationGroup = 'Barang';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 2;
 
     public function getSubheading(): ?string
     {
@@ -90,9 +90,7 @@ class PurchaseInvoices extends Page implements HasTable
             ->headerActions([
                 Action::make('record')->label('Catat faktur')->modalSubmitActionLabel('Simpan faktur')->modalWidth('4xl')
                     ->schema([
-                        Select::make('branch_id')->label('Cabang')->required()
-                            ->options(fn () => Branch::whereIn('id', $user->hasRole('owner') ? Branch::pluck('id') : $user->branches()->pluck('branches.id'))->pluck('name', 'id'))
-                            ->default(fn () => $user->branches()->value('branches.id')),
+                        \App\Support\BranchField::make(),
                         Select::make('supplier_id')->label('Pemasok')->required()->searchable()->placeholder('Pilih pemasok')
                             ->options(fn () => Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id')),
                         TextInput::make('invoice_no')->label('Nomor faktur')->required()->maxLength(60),

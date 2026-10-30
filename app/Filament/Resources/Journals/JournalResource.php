@@ -28,7 +28,7 @@ class JournalResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 7;
 
     /** Satu-satunya daftar nama sumber catatan (dipakai tabel, filter, dan halaman detail). */
     public const SOURCES = [

@@ -32,9 +32,9 @@ class CashClosings extends Page implements HasTable
 
     protected static ?string $title = 'Tutup kas';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
+    protected static string|\UnitEnum|null $navigationGroup = 'Penjualan';
 
-    protected static ?int $navigationSort = 8;
+    protected static ?int $navigationSort = 5;
 
     private const STATUS = ['closed' => 'Selesai', 'pending' => 'Menunggu persetujuan', 'rejected' => 'Ditolak'];
 
@@ -92,8 +92,7 @@ class CashClosings extends Page implements HasTable
             ->headerActions([
                 Action::make('tutup')->label('Tutup kas hari ini')->modalHeading('Tutup kas')->modalSubmitActionLabel('Simpan penutupan')
                     ->schema([
-                        Select::make('branch_id')->label('Cabang')->placeholder('Pilih cabang')->required()
-                            ->options(fn () => $user->hasRole('owner') ? Branch::orderBy('name')->pluck('name', 'id') : $user->branches()->orderBy('name')->pluck('branches.name', 'branches.id')),
+                        \App\Support\BranchField::make('Cabang yang ditutup'),
                         DatePicker::make('date')->label('Tanggal')->default(now())->maxDate(now())->required(),
                         TextInput::make('counted')->label('Uang tunai di laci (Rp)')->prefix('Rp')->numeric()->integer()->minValue(0)->inputMode('numeric')->required()->placeholder('Contoh: 1250000')
                             ->helperText('Hitung semua uang tunai di laci, termasuk uang kembalian yang disiapkan.'),

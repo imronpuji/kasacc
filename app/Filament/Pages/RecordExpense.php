@@ -61,7 +61,7 @@ class RecordExpense extends Page implements HasSchemas
                 TextInput::make('amount')->label('Berapa rupiah?')->numeric()->minValue(1)->required()->prefix('Rp')->placeholder('500000')->helperText('Angka saja, tanpa titik. Contoh: 500000.'),
                 Select::make('method')->label('Dibayar pakai apa?')->required()->native(false)->options(fn () => \App\Domain\Accounting\MoneyAccounts::options(['kredit' => 'Belum dibayar (jadi utang)']))->helperText('Pilih kas atau rekening bank yang dipakai. Pilih "Belum dibayar" untuk tagihan yang akan dilunasi nanti lewat menu Pembayaran utang. Rekening baru ditambah di Daftar akun.'),
                 DatePicker::make('date')->label('Tanggal bayar')->required()->helperText('Tanggal uang keluar.'),
-                Select::make('branch_id')->label('Untuk cabang mana?')->required()->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))->helperText('Pilih toko yang menanggung biaya ini.'),
+                \App\Support\BranchField::make('Untuk cabang mana?', true)->helperText('Pilih toko yang menanggung biaya ini.'),
                 Textarea::make('note')->label('Catatan (boleh dikosongkan)')->rows(2)->maxLength(200)->placeholder('Contoh: listrik bulan Oktober')->columnSpanFull(),
             ])->columns(2),
         ]);

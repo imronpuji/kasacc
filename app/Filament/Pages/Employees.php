@@ -80,7 +80,7 @@ class Employees extends Page implements HasTable
     private static function employeeFields(bool $creating = false): array
     {
         return [
-            Select::make('branch_id')->label('Cabang')->placeholder('Pilih cabang tempat bekerja')->options(fn () => Branch::pluck('name', 'id'))->required()
+            \App\Support\BranchField::make('Cabang tempat bekerja', true)
                 ->helperText('Cabang tempat karyawan bekerja.'),
             TextInput::make('name')->label('Nama lengkap')->placeholder('Contoh: Andi Saputra')->required()
                 ->helperText('Nama yang akan tercetak di slip gaji.'),

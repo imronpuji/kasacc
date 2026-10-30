@@ -124,7 +124,7 @@ class ServiceTicketService
     {
         $this->authorize($user, $ticket->branch_id);
 
-        return DB::transaction(function () use ($ticket, $user, $date, $parts, $labor, $method, $redeemPoints) {
+        $done = DB::transaction(function () use ($ticket, $user, $date, $parts, $labor, $method, $redeemPoints) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
                 throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi tidak bisa diubah lagi.');
@@ -157,6 +157,11 @@ class ServiceTicketService
 
             return $ticket;
         });
+
+        // Servis selesai berarti HP siap diambil. Email dikirim sekali saja (kalau sudah terkirim dari "Siap diambil", tidak dikirim lagi).
+        $this->notifier->serviceReady($done);
+
+        return $done;
     }
 
     /** Batal: DP dikurangi biaya cek menjadi pendapatan jasa, sisanya dikembalikan. */

@@ -18,6 +18,18 @@ Route::get('/nota/{code}', function (string $code) {
     return view('nota-servis', compact('t'));
 })->middleware('web')->name('nota');
 
+// Pelanggan toko: tautan lacak (tanpa masuk) dan portal (HP + kode sekali pakai). Dibatasi lajunya agar kode tidak bisa ditebak.
+Route::get('/lacak/{token}', [App\Http\Controllers\CustomerPortalController::class, 'track'])->middleware('throttle:60,1')->name('lacak');
+Route::prefix('pelanggan')->group(function () {
+    $c = App\Http\Controllers\CustomerPortalController::class;
+    Route::get('/masuk', [$c, 'loginForm'])->name('pelanggan.masuk');
+    Route::post('/masuk', [$c, 'sendCode'])->middleware('throttle:5,1')->name('pelanggan.kode');
+    Route::get('/verifikasi', [$c, 'verifyForm'])->name('pelanggan.verifikasi');
+    Route::post('/verifikasi', [$c, 'verify'])->middleware('throttle:10,1')->name('pelanggan.verifikasi.kirim');
+    Route::get('/', [$c, 'home'])->name('pelanggan.beranda');
+    Route::post('/keluar', [$c, 'logout'])->name('pelanggan.keluar');
+});
+
 Route::get('/slip/{run}', function (int $run) {
     $user = auth()->user();
     if (! $user) {

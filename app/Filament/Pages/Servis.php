@@ -95,6 +95,7 @@ class Servis extends Page implements HasTable
                 TextColumn::make('status')->label('Status')->badge()
                     ->formatStateUsing(fn ($state) => $statusLabel[$state] ?? $state)
                     ->color(fn ($state) => ['diterima' => 'warning', 'selesai' => 'success', 'batal' => 'gray'][$state] ?? 'gray'),
+                TextColumn::make('progress')->label('Proses')->formatStateUsing(fn ($state, ServiceTicket $r) => $r->status === 'diterima' ? (ServiceTicketService::PROGRESS[$state] ?? $state) : '-'),
                 TextColumn::make('deposit')->label('Uang muka (DP)')->money('IDR', locale: 'id'),
                 TextColumn::make('total')->label('Total biaya')->money('IDR', locale: 'id')->placeholder('-'),
             ])
@@ -107,7 +108,7 @@ class Servis extends Page implements HasTable
                         Select::make('branch_id')->label('Cabang')->required()->options($branchOptions)
                             ->default(fn () => $branchOptions()->keys()->first())->visible(fn () => $branchOptions()->count() > 1),
                         TextInput::make('customer_name')->label('Nama pelanggan')->placeholder('Contoh: Budi Santoso')->required(),
-                        TextInput::make('customer_phone')->label('Nomor WhatsApp / HP')->tel()->placeholder('Contoh: 081234567890')->helperText('Dipakai untuk menghubungi pelanggan kalau HP sudah selesai.'),
+                        TextInput::make('customer_phone')->label('Nomor WhatsApp / HP')->tel()->placeholder('Contoh: 081234567890')->helperText('Dipakai untuk menghubungi pelanggan dan supaya pelanggan bisa masuk melihat servisnya. Boleh kosong.'),
                         TextInput::make('device')->label('Tipe HP')->placeholder('Contoh: iPhone 11 64GB hitam')->helperText('Tulis tipe dan warna supaya tidak tertukar dengan HP lain.')->required(),
                         Textarea::make('complaint')->label('Kerusakan / keluhan')->placeholder('Contoh: layar pecah, touchscreen tidak jalan')->helperText('Ceritakan apa yang rusak menurut pelanggan.')->required()->rows(3),
                         Select::make('technician_id')->label('Teknisi yang mengerjakan')->placeholder('Pilih teknisi')->options(fn () => User::role('technician')->orderBy('name')->pluck('name', 'id'))->helperText('Boleh dikosongkan dan diisi nanti.'),
@@ -126,6 +127,20 @@ class Servis extends Page implements HasTable
             ->recordActions([
                 Action::make('nota')->label('Cetak nota')->icon(\Filament\Support\Icons\Heroicon::OutlinedPrinter)
                     ->url(fn (ServiceTicket $r) => route('nota', $r->code), shouldOpenInNewTab: true),
+                Action::make('proses')->label('Ubah proses')->visible(fn (ServiceTicket $r) => $r->status === 'diterima')
+                    ->modalHeading(fn (ServiceTicket $r) => "Proses servis {$r->code}")
+                    ->modalDescription('Pelanggan bisa melihat proses ini di tautan lacak pada nota.')
+                    ->modalSubmitActionLabel('Simpan proses')
+                    ->fillForm(fn (ServiceTicket $r) => ['progress' => $r->progress])
+                    ->schema([
+                        Select::make('progress')->label('Proses sekarang')->options(ServiceTicketService::PROGRESS)->required(),
+                        TextInput::make('note')->label('Catatan untuk pelanggan (boleh kosong)')->maxLength(200)->placeholder('Contoh: layar dipesan, datang besok'),
+                    ])
+                    ->action(fn (ServiceTicket $r, array $data) => self::run(
+                        fn () => app(ServiceTicketService::class)->updateProgress($r, auth()->user(), $data['progress'], $data['note'] ?? null),
+                        'Proses disimpan',
+                        fn ($t) => "Servis {$t->code}: ".ServiceTicketService::PROGRESS[$t->progress].'.',
+                    )),
                 Action::make('selesai')->label('Selesai diperbaiki')->visible(fn (ServiceTicket $r) => $r->status === 'diterima')
                     ->modalHeading(fn (ServiceTicket $r) => "Selesai diperbaiki: {$r->code}")
                     ->modalDescription(fn (ServiceTicket $r) => 'Stok sparepart akan berkurang dan pembayaran dicatat. '

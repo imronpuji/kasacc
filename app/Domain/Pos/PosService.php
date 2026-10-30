@@ -3,6 +3,7 @@
 namespace App\Domain\Pos;
 
 use App\Domain\Accounting\LedgerService;
+use App\Domain\Customer\CustomerService;
 use App\Domain\Inventory\InventoryService;
 use App\Domain\Transactions;
 use App\Models\Branch;
@@ -19,6 +20,7 @@ class PosService
         private Transactions $transactions,
         private LedgerService $ledger,
         private InventoryService $inventory,
+        private CustomerService $customers,
     ) {
     }
 
@@ -26,7 +28,7 @@ class PosService
      * Checkout kasir. $items: [['product_id' => 1, 'qty' => 2, 'price' => 120000 (opsional, default harga jual)]].
      * Pendapatan, HPP, stok, dan struk disimpan dalam satu transaksi database: gagal satu, batal semua.
      */
-    public function checkout(User $cashier, int $branchId, string $date, array $items, string $method): PosSale
+    public function checkout(User $cashier, int $branchId, string $date, array $items, string $method, ?string $customerPhone = null): PosSale
     {
         if (! $cashier->can('post-sales')) {
             throw new DomainException('Anda tidak punya izin untuk berjualan di Kasir. Hubungi pemilik toko.');
@@ -59,8 +61,9 @@ class PosService
         }
 
         $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
+        $customer = $this->customers->resolve(null, $customerPhone);
 
-        return DB::transaction(function () use ($cashier, $branchId, $date, $lines, $method, $mdrBps) {
+        return DB::transaction(function () use ($cashier, $branchId, $date, $lines, $method, $mdrBps, $customer) {
             $receiptNo = $this->nextReceiptNo($branchId, $date);
             $journal = $this->transactions->posSale($branchId, $date, array_map(
                 fn ($l) => ['sku' => $l['sku'], 'qty' => $l['qty'], 'price' => $l['price']], $lines,
@@ -71,6 +74,7 @@ class PosService
 
             $sale = PosSale::create([
                 'branch_id' => $branchId,
+                'customer_id' => $customer?->id,
                 'receipt_no' => $receiptNo,
                 'cashier_id' => $cashier->id,
                 'sold_on' => $date,

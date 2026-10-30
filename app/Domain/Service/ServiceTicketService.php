@@ -2,6 +2,7 @@
 
 namespace App\Domain\Service;
 
+use App\Domain\Customer\CustomerService;
 use App\Domain\Transactions;
 use App\Models\Account;
 use App\Models\Branch;
@@ -10,11 +11,58 @@ use App\Models\ServiceTicket;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ServiceTicketService
 {
-    public function __construct(private Transactions $transactions)
+    /** Proses pengerjaan yang bisa dipilih staf selama HP belum ditutup. Status selesai/batal diatur otomatis oleh Selesai dan Batalkan. */
+    public const PROGRESS = [
+        'diterima' => 'HP sudah diterima',
+        'dikerjakan' => 'Sedang dikerjakan',
+        'menunggu_sparepart' => 'Menunggu sparepart',
+        'siap_diambil' => 'Siap diambil',
+    ];
+
+    public function __construct(private Transactions $transactions, private CustomerService $customers)
     {
+    }
+
+    /** Tulisan status untuk pelanggan, dari status tiket dan proses terakhir. */
+    public static function publicStatus(ServiceTicket $t): string
+    {
+        return match ($t->status) {
+            'selesai' => 'Selesai. HP bisa diambil.',
+            'batal' => 'Servis dibatalkan.',
+            default => self::PROGRESS[$t->progress] ?? 'Sedang dikerjakan',
+        };
+    }
+
+    private function logProgress(ServiceTicket $ticket, string $progress, ?string $note, ?int $userId): void
+    {
+        DB::table('service_progress_logs')->insert([
+            'service_ticket_id' => $ticket->id, 'progress' => $progress, 'note' => $note ? mb_substr($note, 0, 200) : null,
+            'user_id' => $userId, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
+    /** Ubah proses pengerjaan (mis. menunggu sparepart); pelanggan melihatnya di tautan lacak dan portal. */
+    public function updateProgress(ServiceTicket $ticket, User $user, string $progress, ?string $note = null): ServiceTicket
+    {
+        $this->authorize($user, $ticket->branch_id);
+        if (! isset(self::PROGRESS[$progress])) {
+            throw new DomainException('Proses tidak dikenal. Pilih salah satu proses yang tersedia.');
+        }
+
+        return DB::transaction(function () use ($ticket, $user, $progress, $note) {
+            $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
+            if ($ticket->status !== 'diterima') {
+                throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi prosesnya tidak bisa diubah lagi.');
+            }
+            $ticket->update(['progress' => $progress]);
+            $this->logProgress($ticket, $progress, $note, $user->id);
+
+            return $ticket;
+        });
     }
 
     private function authorize(User $user, int $branchId): void
@@ -35,9 +83,13 @@ class ServiceTicketService
             throw new DomainException('Uang muka (DP) tidak boleh minus. Isi 0 kalau tidak ada DP.');
         }
 
-        return DB::transaction(function () use ($branchId, $date, $data, $deposit, $depositMethod) {
+        $customer = $this->customers->resolve($data['customer_name'] ?? null, $data['customer_phone'] ?? null);
+
+        return DB::transaction(function () use ($user, $branchId, $date, $data, $deposit, $depositMethod, $customer) {
             $ticket = ServiceTicket::create([
                 'branch_id' => $branchId,
+                'customer_id' => $customer?->id,
+                'public_token' => Str::random(32),
                 'code' => $this->nextCode($branchId, $date),
                 'customer_name' => $data['customer_name'],
                 'customer_phone' => $data['customer_phone'] ?? null,
@@ -48,6 +100,8 @@ class ServiceTicketService
                 'deposit' => $deposit,
                 'received_on' => $date,
             ]);
+
+            $this->logProgress($ticket, 'diterima', null, $user->id);
 
             if ($deposit > 0) {
                 $this->transactions->receiveDeposit($branchId, $date, $deposit, $depositMethod, $ticket->code);
@@ -62,7 +116,7 @@ class ServiceTicketService
     {
         $this->authorize($user, $ticket->branch_id);
 
-        return DB::transaction(function () use ($ticket, $date, $parts, $labor, $method) {
+        return DB::transaction(function () use ($ticket, $user, $date, $parts, $labor, $method) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
                 throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi tidak bisa diubah lagi.');
@@ -86,6 +140,7 @@ class ServiceTicketService
                 'status' => 'selesai', 'labor_fee' => $labor, 'parts_total' => $partsTotal, 'total' => $total,
                 'payment_method' => $method, 'closed_on' => $date, 'journal_id' => $journal->id,
             ]);
+            $this->logProgress($ticket, 'selesai', null, $user->id);
 
             return $ticket;
         });
@@ -96,7 +151,7 @@ class ServiceTicketService
     {
         $this->authorize($user, $ticket->branch_id);
 
-        return DB::transaction(function () use ($ticket, $date, $fee, $refundMethod) {
+        return DB::transaction(function () use ($ticket, $user, $date, $fee, $refundMethod) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
                 throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi tidak bisa diubah lagi.');
@@ -113,6 +168,7 @@ class ServiceTicketService
             $ticket->update([
                 'status' => 'batal', 'labor_fee' => $fee, 'total' => $fee, 'closed_on' => $date, 'journal_id' => $journalId,
             ]);
+            $this->logProgress($ticket, 'batal', null, $user->id);
 
             return $ticket;
         });
@@ -133,6 +189,7 @@ class ServiceTicketService
             $accountId = Account::where('code', Transactions::BEBAN_GARANSI)->value('id');
             $cost = (int) JournalLine::where('journal_id', $journal->id)->where('account_id', $accountId)->sum('debit');
             $ticket->update(['warranty_cost' => $ticket->warranty_cost + $cost]);
+            DB::table('warranty_claims')->insert(['service_ticket_id' => $ticket->id, 'claimed_on' => $date, 'cost' => $cost, 'created_at' => now(), 'updated_at' => now()]);
 
             return $ticket;
         });

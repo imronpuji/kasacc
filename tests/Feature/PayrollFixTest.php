@@ -310,3 +310,15 @@ it('potongan telat yang lebih kecil dari penghasilan tidak diubah', function () 
 
     expect($slip->late_deduction)->toBe(40_000)->and($slip->income)->toBe(5_000_000 - 40_000);
 });
+
+it('persen komisi tersimpan di slip: mengubah persen karyawan tidak mengubah rincian slip lama', function () {
+    $this->emp->update(['base_salary' => 0, 'fixed_allowance' => 0, 'commission_bps' => 4000]);
+    $this->months = [1];
+    fixAttendance();
+    fixTicket($this->branch->id, $this->tech->id, 500_000, '2027-01-10');
+    $run = $this->pay->generate($this->finance, $this->branch->id, 2027, 1);
+    $this->emp->update(['commission_bps' => 1000]);
+
+    expect($run->slips()->first()->commission_bps)->toBe(4000);
+    $this->actingAs($this->finance)->get(route('slip', $run->id))->assertSee('(40% dari ongkos servis)')->assertDontSee('(10% dari ongkos servis)');
+});

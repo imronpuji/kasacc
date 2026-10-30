@@ -28,7 +28,7 @@ class OpsReportService
             ->get()->map(fn ($r) => ['technician' => $r->technician, 'tickets' => (int) $r->tickets, 'labor' => (int) $r->labor, 'parts' => (int) $r->parts, 'total' => (int) $r->total])->all();
     }
 
-    /** Refund dan komplain: struk dibatalkan, servis batal (DP dikembalikan), dan servis selesai yang kena garansi. */
+    /** Refund dan komplain: struk dibatalkan, servis batal (DP dikembalikan), dan klaim garansi menurut tanggal klaim. */
     public function problemsReport(?int $branchId, string $from, string $to): array
     {
         $voids = DB::table('pos_sales')->whereNotNull('voided_at')
@@ -36,18 +36,24 @@ class OpsReportService
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->orderBy('voided_at')->get(['receipt_no', 'sold_on', 'voided_at', 'total', 'void_reason'])
             ->map(fn ($r) => ['receipt_no' => $r->receipt_no, 'sold_on' => (string) $r->sold_on, 'voided_on' => substr((string) $r->voided_at, 0, 10), 'total' => (int) $r->total, 'reason' => $r->void_reason])->all();
-        $receipts = (int) DB::table('pos_sales')->whereNull('voided_at')->whereBetween('sold_on', [$from, $to])
+        $receipts = (int) DB::table('pos_sales')->whereBetween('sold_on', [$from, $to])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count();
 
         $tickets = fn (string $status) => DB::table('service_tickets')->where('status', $status)
             ->whereBetween('closed_on', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
         $cancels = $tickets('batal')->orderBy('closed_on')->get(['code', 'customer_name', 'device', 'closed_on', 'deposit', 'labor_fee'])
             ->map(fn ($r) => ['code' => $r->code, 'customer' => $r->customer_name, 'device' => $r->device, 'date' => (string) $r->closed_on, 'refund' => max((int) $r->deposit - (int) $r->labor_fee, 0)])->all();
-        $warranty = $tickets('selesai')->where('warranty_cost', '>', 0)->orderBy('closed_on')->get(['code', 'customer_name', 'device', 'closed_on', 'warranty_cost'])
-            ->map(fn ($r) => ['code' => $r->code, 'customer' => $r->customer_name, 'device' => $r->device, 'date' => (string) $r->closed_on, 'cost' => (int) $r->warranty_cost])->all();
+        $warranty = DB::table('warranty_claims as w')->join('service_tickets as t', 't.id', '=', 'w.service_ticket_id')
+            ->whereBetween('w.claimed_on', [$from, $to])->when($branchId, fn ($q) => $q->where('t.branch_id', $branchId))
+            ->orderBy('w.claimed_on')->orderBy('w.id')->get(['t.code', 't.customer_name', 't.device', 'w.claimed_on', 'w.cost'])
+            ->map(fn ($r) => ['code' => $r->code, 'customer' => $r->customer_name, 'device' => $r->device, 'date' => (string) $r->claimed_on, 'cost' => (int) $r->cost])->all();
         $done = (int) $tickets('selesai')->count();
 
+        $complaints = DB::table('complaints')->whereBetween('received_on', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->groupBy('status')->selectRaw('status, COUNT(*) as n')->pluck('n', 'status')->map(fn ($n) => (int) $n)->all();
+
         return [
+            'complaints' => $complaints, 'complaint_count' => array_sum($complaints),
             'voids' => $voids, 'void_count' => count($voids), 'void_total' => array_sum(array_column($voids, 'total')), 'receipts' => $receipts,
             'cancels' => $cancels, 'cancel_total' => array_sum(array_column($cancels, 'refund')),
             'warranty' => $warranty, 'warranty_total' => array_sum(array_column($warranty, 'cost')), 'services_done' => $done,

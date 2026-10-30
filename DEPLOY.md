@@ -44,6 +44,11 @@ ProductionSeeder membuat bagan akun, peran (owner, approver, finance_admin, hr, 
 5. Setor modal awal lewat jurnal pembukaan.
 6. Ganti password pemilik.
 
+## Portal pelanggan (masuk dengan HP + kode)
+- Pelanggan masuk di `/pelanggan/masuk` dengan nomor HP + kode 6 angka. Kode dikirim lewat `OtpSender` (lihat `AppServiceProvider`).
+- Bawaan `KASIR_OTP_DRIVER=log` hanya menulis kode ke log dan **ditolak di produksi**, jadi portal otomatis menolak masuk sampai pengirim WhatsApp/SMS sungguhan didaftarkan.
+- Tautan lacak servis (`/lacak/{token}`) tidak butuh masuk dan sudah aktif; hanya menampilkan status.
+
 ## Pemeriksaan sebelum klien memakai
 - Login sebagai tiap peran, pastikan menu yang tampil sesuai tugasnya.
 - Satu transaksi kasir, satu servis, satu payroll uji di Dev dulu, bukan di Prod.

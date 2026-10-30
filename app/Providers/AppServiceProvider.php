@@ -12,7 +12,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Pengirim kode masuk pelanggan; tambahkan pengirim WhatsApp/SMS sungguhan di sini lalu pilih lewat KASIR_OTP_DRIVER.
+        $this->app->bind(\App\Domain\Customer\OtpSender::class, fn () => match (config('kasir.otp_driver')) {
+            'log' => new \App\Domain\Customer\LogOtpSender,
+            default => throw new \RuntimeException('KASIR_OTP_DRIVER tidak dikenal: '.config('kasir.otp_driver')),
+        });
     }
 
     /**

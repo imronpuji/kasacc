@@ -111,7 +111,7 @@ class PayrollService
         $jpBase = min($upah, $g('jp_cap'));
         $slip = [
             'employee_id' => $e->id, 'base' => (int) $e->base_salary, 'allowance' => (int) $e->fixed_allowance,
-            'overtime' => $overtime, 'commission' => $commission, 'thr' => $thr, 'absence_deduction' => $absence, 'late_deduction' => $late,
+            'overtime' => $overtime, 'commission' => $commission, 'commission_bps' => $commission > 0 ? (int) $e->commission_bps : null, 'thr' => $thr, 'absence_deduction' => $absence, 'late_deduction' => $late,
             'income' => $income,
             'emp_kes' => $pct($kesBase, $g('kes_emp')), 'emp_jht' => $pct($upah, $g('jht_emp')), 'emp_jp' => $pct($jpBase, $g('jp_emp')),
             'er_kes' => $pct($kesBase, $g('kes_er')), 'er_jht' => $pct($upah, $g('jht_er')), 'er_jp' => $pct($jpBase, $g('jp_er')),

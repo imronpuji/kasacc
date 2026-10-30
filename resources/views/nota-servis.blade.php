@@ -29,4 +29,5 @@
 <tr><td>DP dibayar</td><td class="r">{{ $rp($t->deposit) }}</td></tr>
 @endif
 </table><hr>
+@if ($t->public_token)<div style="text-align:center;font-size:12px">Cek status servis:<br>{{ route('lacak', $t->public_token) }}<br>Masuk pelanggan: {{ route('pelanggan.masuk') }}</div><hr>@endif
 <p style="text-align:center;font-size:12px">@if ($t->status === 'diterima')Bawa nota ini saat mengambil HP.@else Simpan nota ini sebagai bukti.@endif</p></body></html>

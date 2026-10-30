@@ -68,3 +68,24 @@ it('servis ditolak untuk user tanpa wewenang atau cabang lain', function () {
     $fin = User::factory()->create(); $fin->assignRole('finance_admin'); $fin->branches()->attach($this->branch->id);
     expect(fn () => $this->svc->receive($fin, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'device' => 'Y']))->toThrow(DomainException::class, 'tidak punya izin');
 });
+
+it('laporan refund dan komplain: klaim garansi menurut tanggal klaim, servis batal, dan filter cabang', function () {
+    $ops = app(\App\Domain\Accounting\OpsReportService::class);
+    $done = $this->svc->receive($this->staff, $this->branch->id, '2026-11-17', ['customer_name' => 'Rina', 'device' => 'iPhone 12']);
+    $done = $this->svc->complete($done, $this->staff, '2026-11-18', [['sku' => 'BAT12', 'qty' => 1, 'price' => 700_000]], 100_000, 'kas');
+    $this->svc->claimWarranty($done, $this->staff, '2026-12-02', 'BAT12');
+    $this->svc->claimWarranty($done->fresh(), $this->staff, '2026-12-09', 'BAT12');
+    $cancelled = $this->svc->receive($this->staff, $this->branch->id, '2026-11-20', ['customer_name' => 'Budi', 'device' => 'iPhone 11'], 200_000);
+    $this->svc->cancel($cancelled, $this->staff, '2026-11-21', 50_000);
+
+    $nov = $ops->problemsReport($this->branch->id, '2026-11-01', '2026-11-30');
+    expect($nov['warranty'])->toBe([])->and($nov['services_done'])->toBe(1)
+        ->and($nov['cancels'])->toHaveCount(1)->and($nov['cancels'][0]['refund'])->toBe(150_000)->and($nov['cancel_total'])->toBe(150_000);
+
+    $dec = $ops->problemsReport($this->branch->id, '2026-12-01', '2026-12-31');
+    expect($dec['warranty'])->toHaveCount(2)->and($dec['warranty_total'])->toBe(800_000)->and($dec['cancels'])->toBe([]);
+
+    $other = Branch::create(['code' => 'BDG', 'name' => 'Bandung']);
+    expect($ops->problemsReport($other->id, '2026-11-01', '2026-12-31')['warranty'])->toBe([])
+        ->and($ops->problemsReport($other->id, '2026-11-01', '2026-12-31')['cancels'])->toBe([]);
+});

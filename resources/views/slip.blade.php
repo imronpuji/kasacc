@@ -32,7 +32,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 0}td.r{t
   </table>
   @php $tickets = app(\App\Domain\Payroll\PayrollService::class)->slipTickets($s); @endphp
   @if ($tickets->isNotEmpty())
-  <h2>Rincian komisi servis ({{ rtrim(rtrim(number_format($s->employee->commission_bps / 100, 2, ',', '.'), '0'), ',') }}% dari ongkos servis)</h2>
+  <h2>Rincian komisi servis{{ $s->commission_bps ? ' ('.rtrim(rtrim(number_format($s->commission_bps / 100, 2, ',', '.'), '0'), ',').'% dari ongkos servis)' : '' }}</h2>
   <table>
     @foreach ($tickets as $t)
     <tr><td>{{ $t->closed_on?->format('d/m') }} · {{ $t->code }} · {{ $t->device }}</td><td class="r">{{ $rp($t->labor_fee) }}</td></tr>

@@ -78,7 +78,7 @@ class Pelanggan extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(fn (): Builder => Customer::query()->withCount(['tickets', 'sales', 'complaints'])->latest('id'))
+            ->query(fn (): Builder => Customer::query()->withCount(['tickets', 'sales', 'complaints'])->withSum('points', 'points')->latest('id'))
             ->emptyStateHeading('Belum ada pelanggan')
             ->emptyStateDescription('Pelanggan muncul otomatis saat Anda mengisi nomor HP di servis atau kasir.')
             ->columns([
@@ -88,6 +88,7 @@ class Pelanggan extends Page implements HasTable
                 TextColumn::make('tickets_count')->label('Servis')->alignEnd(),
                 TextColumn::make('sales_count')->label('Belanja')->alignEnd(),
                 TextColumn::make('complaints_count')->label('Komplain')->alignEnd(),
+                TextColumn::make('points_sum_points')->label('Poin')->alignEnd()->state(fn (Customer $r) => (int) $r->points_sum_points)->numeric(),
                 TextColumn::make('last_login_at')->label('Terakhir masuk')->dateTime('d/m/Y H:i')->placeholder('Belum pernah'),
             ])
             ->headerActions([
@@ -104,6 +105,23 @@ class Pelanggan extends Page implements HasTable
                     }),
             ])
             ->recordActions([
+                Action::make('koreksiPoin')->label('Koreksi poin')->color('gray')->modalSubmitActionLabel('Simpan koreksi')
+                    ->visible(fn () => auth()->user()?->hasRole('owner') ?? false)
+                    ->modalDescription('Untuk memperbaiki salah catat atau memberi poin hadiah. Setiap koreksi tercatat dengan alasannya.')
+                    ->schema([
+                        TextInput::make('points')->label('Jumlah poin (minus untuk mengurangi)')->numeric()->integer()->required()->placeholder('Contoh: 50 atau -20'),
+                        TextInput::make('reason')->label('Alasan')->required()->maxLength(200)->placeholder('Contoh: poin hadiah ulang tahun'),
+                    ])
+                    ->action(function (Customer $r, array $data) {
+                        try {
+                            app(\App\Domain\Loyalty\LoyaltyService::class)->adjust($r, (int) $data['points'], $data['reason'], auth()->user());
+                        } catch (\DomainException $e) {
+                            Notification::make()->title('Poin belum dikoreksi')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+                        Notification::make()->title('Poin dikoreksi')->success()->send();
+                    }),
                 Action::make('ubah')->label('Ubah')->modalSubmitActionLabel('Simpan perubahan')
                     ->fillForm(fn (Customer $r) => $r->only(['name', 'phone', 'email', 'note']))
                     ->schema(fn (Customer $r) => [

@@ -80,7 +80,11 @@
                 </div>
             @endforeach
 
-            <div class="ks-total"><span style="font-size:16px;font-weight:600">Total yang harus dibayar</span><span>Rp {{ number_format($this->total, 0, ',', '.') }}</span></div>
+            @if ($this->discount > 0)
+                <div style="display:flex;justify-content:space-between;font-size:14px"><span>Jumlah belanja</span><span>Rp {{ number_format($this->total, 0, ',', '.') }}</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:14px;color:#0E7A4F"><span>Potongan {{ number_format($this->redeemCount, 0, ',', '.') }} poin</span><span>-Rp {{ number_format($this->discount, 0, ',', '.') }}</span></div>
+            @endif
+            <div class="ks-total"><span style="font-size:16px;font-weight:600">Total yang harus dibayar</span><span>Rp {{ number_format($this->payable, 0, ',', '.') }}</span></div>
 
             <div style="font-size:14px;font-weight:600">Pelanggan bayar dengan</div>
             <div class="ks-pay">
@@ -97,8 +101,20 @@
                 <x-filament::input.wrapper>
                     <x-filament::input type="text" wire:model.blur="customerContact" placeholder="Contoh: budi@email.com atau 081234567890" />
                 </x-filament::input.wrapper>
-                <span class="ks-muted">Isi supaya pelanggan bisa melihat belanjanya di portal pelanggan (masuk dengan email).</span>
+                <span class="ks-muted">Isi supaya pelanggan bisa melihat belanjanya di portal pelanggan (masuk dengan email) dan mengumpulkan poin.</span>
             </label>
+            @if ($this->member)
+                <div class="ks-muted" style="color:#0B4FC4;font-weight:600">{{ $this->member->name }}: {{ number_format($this->memberPoints, 0, ',', '.') }} poin</div>
+                @if ($this->maxPoints > 0 && ! empty($cart))
+                    <label style="display:flex;flex-direction:column;gap:4px">
+                        <span style="font-size:14px;font-weight:600">Pakai poin (boleh dikosongkan)</span>
+                        <x-filament::input.wrapper>
+                            <x-filament::input type="text" inputmode="numeric" wire:model.live.debounce.300ms="redeemPoints" placeholder="Paling banyak {{ number_format($this->maxPoints, 0, ',', '.') }}" />
+                        </x-filament::input.wrapper>
+                        <span class="ks-muted">1 poin = Rp{{ number_format(app(\App\Domain\Loyalty\LoyaltyService::class)->pointValue(), 0, ',', '.') }} potongan. Kalau melebihi batas, dipotong ke batas.</span>
+                    </label>
+                @endif
+            @endif
 
             @if ($method === 'kas' && ! empty($cart))
                 <label style="display:flex;flex-direction:column;gap:4px">

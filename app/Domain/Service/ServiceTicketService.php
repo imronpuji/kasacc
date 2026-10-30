@@ -23,7 +23,7 @@ class ServiceTicketService
         'siap_diambil' => 'Siap diambil',
     ];
 
-    public function __construct(private Transactions $transactions, private CustomerService $customers)
+    public function __construct(private Transactions $transactions, private CustomerService $customers, private \App\Domain\Loyalty\LoyaltyService $loyalty)
     {
     }
 
@@ -112,11 +112,11 @@ class ServiceTicketService
     }
 
     /** $parts: [['sku' => ..., 'qty' => ..., 'price' => ...]]. DP dipotong dari tagihan. */
-    public function complete(ServiceTicket $ticket, User $user, string $date, array $parts, int $labor, string $method): ServiceTicket
+    public function complete(ServiceTicket $ticket, User $user, string $date, array $parts, int $labor, string $method, int $redeemPoints = 0): ServiceTicket
     {
         $this->authorize($user, $ticket->branch_id);
 
-        return DB::transaction(function () use ($ticket, $user, $date, $parts, $labor, $method) {
+        return DB::transaction(function () use ($ticket, $user, $date, $parts, $labor, $method, $redeemPoints) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
                 throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi tidak bisa diubah lagi.');
@@ -131,16 +131,21 @@ class ServiceTicketService
                 throw new DomainException('DP melebihi total biaya servis. Tambah ongkos servis atau sparepart, atau pakai Batalkan servis.');
             }
 
+            $customer = $ticket->customer_id ? \App\Models\Customer::find($ticket->customer_id) : null;
+            $discount = $this->loyalty->discountFor($customer, $redeemPoints, $total, $total - (int) $ticket->deposit);
+
             $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
             $journal = $this->transactions->completeService(
-                $ticket->branch_id, $date, $parts, $labor, (int) $ticket->deposit, $method, $mdrBps, $ticket->code,
+                $ticket->branch_id, $date, $parts, $labor, (int) $ticket->deposit, $method, $mdrBps, $ticket->code, 'service', 'Servis selesai', $discount,
             );
 
             $ticket->update([
                 'status' => 'selesai', 'labor_fee' => $labor, 'parts_total' => $partsTotal, 'total' => $total,
+                'discount' => $discount, 'points_redeemed' => $redeemPoints,
                 'payment_method' => $method, 'closed_on' => $date, 'journal_id' => $journal->id,
             ]);
             $this->logProgress($ticket, 'selesai', null, $user->id);
+            $this->loyalty->record($customer, 'service_ticket', $ticket->id, $redeemPoints, $total - $discount, $user->id);
 
             return $ticket;
         });

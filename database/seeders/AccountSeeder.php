@@ -36,6 +36,7 @@ class AccountSeeder extends Seeder
         ['6-2100', 'Beban listrik dan internet', 'expense'],
         ['6-3000', 'Beban penyusutan', 'expense'],
         ['6-6000', 'Beban garansi', 'expense'],
+        ['6-7000', 'Beban poin member (potongan harga)', 'expense'],
         ['8-1000', 'Beban biaya pembayaran (MDR QRIS)', 'other_expense'],
         ['8-1100', 'Beban administrasi bank', 'other_expense'],
         ['8-1300', 'Beban bunga pinjaman', 'other_expense'],

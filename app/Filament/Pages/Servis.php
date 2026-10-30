@@ -156,16 +156,25 @@ class Servis extends Page implements HasTable
                             TextInput::make('price')->label('Harga ke pelanggan (Rp)')->prefix('Rp')->inputMode('numeric')->numeric()->minValue(1)->placeholder('Contoh: 350000')->required(),
                         ])->columns(['default' => 1, 'sm' => 3])->helperText('Kosongkan kalau tidak ada sparepart yang diganti.'),
                         TextInput::make('labor')->label('Ongkos servis / jasa (Rp)')->prefix('Rp')->inputMode('numeric')->numeric()->minValue(0)->default(0)->required()->placeholder('Contoh: 100000')->helperText('Upah teknisi, di luar harga sparepart.'),
+                        TextInput::make('points')->label('Pakai poin pelanggan (boleh dikosongkan)')->numeric()->inputMode('numeric')->minValue(0)->default(0)
+                            ->visible(fn (?ServiceTicket $record) => (bool) $record?->customer_id)
+                            ->helperText(function (?ServiceTicket $record) {
+                                $loyalty = app(\App\Domain\Loyalty\LoyaltyService::class);
+                                $customer = $record?->customer_id ? \App\Models\Customer::find($record->customer_id) : null;
+                                $bal = $customer ? $loyalty->balance($customer) : 0;
+
+                                return 'Saldo '.number_format($bal, 0, ',', '.').' poin. 1 poin = Rp'.number_format($loyalty->pointValue(), 0, ',', '.').' potongan, paling banyak '.(int) config('kasir.loyalty.max_redeem_percent').'% dari total servis.';
+                            }),
                         Select::make('method')->label('Sisa dibayar dengan')->options(fn () => \App\Domain\Accounting\MoneyAccounts::options(['qris' => 'QRIS']))->default('kas')->required()->helperText('Tunai masuk laci kas. Transfer dan QRIS masuk rekening toko.'),
                     ])
                     ->action(fn (ServiceTicket $r, array $data) => self::run(
                         fn () => app(ServiceTicketService::class)->complete(
                             $r, auth()->user(), now()->toDateString(),
                             array_map(fn ($p) => ['sku' => $p['sku'], 'qty' => (int) $p['qty'], 'price' => (int) $p['price']], $data['parts'] ?? []),
-                            (int) $data['labor'], $data['method'],
+                            (int) $data['labor'], $data['method'], (int) ($data['points'] ?? 0),
                         ),
                         'Servis selesai',
-                        fn ($t) => "Servis {$t->code} selesai. Total biaya ".self::rp($t->total).'.',
+                        fn ($t) => "Servis {$t->code} selesai. Total biaya ".self::rp($t->total - $t->discount).($t->discount > 0 ? ' (sudah dipotong poin '.self::rp($t->discount).')' : '').'.',
                     )),
                 Action::make('batal')->label('Batalkan servis')->color('danger')->visible(fn (ServiceTicket $r) => $r->status === 'diterima')
                     ->requiresConfirmation()

@@ -46,6 +46,8 @@ class Kasir extends Page
 
     public ?string $customerContact = null;
 
+    public ?string $redeemPoints = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()?->can('post-sales') ?? false;
@@ -72,7 +74,7 @@ class Kasir extends Page
     {
         $given = (int) preg_replace('/\D/', '', (string) $this->cashReceived);
 
-        return $given > 0 ? $given - $this->total : null;
+        return $given > 0 ? $given - $this->payable : null;
     }
 
     private function stockOf(int $productId): int
@@ -156,6 +158,51 @@ class Kasir extends Page
         return (int) collect($this->cart)->sum(fn ($i) => (int) $i['qty'] * (int) $i['price']);
     }
 
+    /** Pelanggan yang cocok dengan isian email/HP, hanya dicari (tidak dibuat) supaya mengetik di kasir tidak menambah data. */
+    public function getMemberProperty(): ?\App\Models\Customer
+    {
+        $c = trim((string) $this->customerContact);
+        if ($c === '') {
+            return null;
+        }
+        if (str_contains($c, '@')) {
+            $email = \App\Support\EmailAddress::normalize($c);
+
+            return $email ? \App\Models\Customer::where('email', $email)->first() : null;
+        }
+        $phone = \App\Support\PhoneNumber::normalize($c);
+
+        return $phone ? \App\Models\Customer::where('phone', $phone)->first() : null;
+    }
+
+    public function getMemberPointsProperty(): int
+    {
+        return $this->member ? app(\App\Domain\Loyalty\LoyaltyService::class)->balance($this->member) : 0;
+    }
+
+    /** Poin terbanyak yang boleh dipakai untuk keranjang ini (saldo, batas persen, dan nilai tagihan). */
+    public function getMaxPointsProperty(): int
+    {
+        $loyalty = app(\App\Domain\Loyalty\LoyaltyService::class);
+
+        return max(min($this->memberPoints, intdiv($loyalty->maxDiscount($this->total, $this->total), $loyalty->pointValue())), 0);
+    }
+
+    public function getRedeemCountProperty(): int
+    {
+        return min(max((int) preg_replace('/\D/', '', (string) $this->redeemPoints), 0), $this->maxPoints);
+    }
+
+    public function getDiscountProperty(): int
+    {
+        return $this->redeemCount * app(\App\Domain\Loyalty\LoyaltyService::class)->pointValue();
+    }
+
+    public function getPayableProperty(): int
+    {
+        return $this->total - $this->discount;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -195,6 +242,7 @@ class Kasir extends Page
                 array_values(array_map(fn ($i) => ['product_id' => (int) $i['product_id'], 'qty' => (int) $i['qty']], $this->cart)),
                 $this->method,
                 $this->customerContact,
+                $this->redeemCount,
             );
         } catch (DomainException|\InvalidArgumentException $e) {
             Notification::make()->title('Pembayaran belum berhasil')->body($e->getMessage())->danger()->send();
@@ -214,6 +262,7 @@ class Kasir extends Page
         $this->cart = [];
         $this->cashReceived = null;
         $this->customerContact = null;
+        $this->redeemPoints = null;
         $this->lastReceipt = $sale->receipt_no;
         Notification::make()->title('Pembayaran berhasil')->body('Nomor struk: '.$sale->receipt_no)->success()
             ->actions([Action::make('cetak')->label('Cetak struk')->url(route('struk', $sale->receipt_no), shouldOpenInNewTab: true)->button()])

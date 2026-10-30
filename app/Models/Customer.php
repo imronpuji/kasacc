@@ -22,6 +22,11 @@ class Customer extends Authenticatable
         return $this->hasMany(PosSale::class);
     }
 
+    public function points(): HasMany
+    {
+        return $this->hasMany(LoyaltyPoint::class);
+    }
+
     public function complaints(): HasMany
     {
         return $this->hasMany(Complaint::class);

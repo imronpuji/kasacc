@@ -95,7 +95,7 @@ it('menjalankan T1 sampai T19 dan menghasilkan laporan yang persis sama dengan d
     expect($is['revenue'])->toBe(5_010_000);
     expect($is['cogs'])->toBe(2_250_000);
     expect($is['gross_profit'])->toBe(2_760_000);
-    expect($is['expense_rows'])->toBe(['6-1000' => 4_000_000, '6-1100' => 0, '6-2000' => 3_000_000, '6-2100' => 500_000, '6-3000' => 0, '6-6000' => 1_050_000, '8-1000' => 16_100, '8-1100' => 15_000, '8-1200' => 0, '8-1300' => 0]);
+    expect($is['expense_rows'])->toBe(['6-1000' => 4_000_000, '6-1100' => 0, '6-2000' => 3_000_000, '6-2100' => 500_000, '6-3000' => 0, '6-6000' => 1_050_000, '6-7000' => 0, '8-1000' => 16_100, '8-1100' => 15_000, '8-1200' => 0, '8-1300' => 0]);
     expect($is['net_income'])->toBe(-5_821_100);
 
     $bs = $reports->balanceSheet(null, '2026-11-30');

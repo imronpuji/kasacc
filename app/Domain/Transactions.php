@@ -26,6 +26,7 @@ class Transactions
     public const PEND_BARANG = '4-1100';
     public const HPP = '5-1000';
     public const BEBAN_GARANSI = '6-6000';
+    public const BEBAN_POIN = '6-7000';
     public const BEBAN_MDR = '8-1000';
 
     public function __construct(
@@ -134,9 +135,9 @@ class Transactions
      * Servis selesai. $parts: [['sku' => ..., 'qty' => ..., 'price' => ...]].
      * $mdrBps: biaya QRIS dalam basis poin (70 = 0,7%) atas jumlah yang dibayar sekarang.
      */
-    public function completeService(int $branchId, string $date, array $parts, int $labor, int $depositApplied, string $method, int $mdrBps = 0, ?string $ticket = null, string $source = 'service', string $description = 'Servis selesai'): Journal
+    public function completeService(int $branchId, string $date, array $parts, int $labor, int $depositApplied, string $method, int $mdrBps = 0, ?string $ticket = null, string $source = 'service', string $description = 'Servis selesai', int $discount = 0): Journal
     {
-        return DB::transaction(function () use ($branchId, $date, $parts, $labor, $depositApplied, $method, $mdrBps, $ticket, $source, $description) {
+        return DB::transaction(function () use ($branchId, $date, $parts, $labor, $depositApplied, $method, $mdrBps, $ticket, $source, $description, $discount) {
             $partsRevenue = 0;
             $hpp = 0;
             foreach ($parts as $p) {
@@ -145,12 +146,19 @@ class Transactions
             }
 
             $total = $partsRevenue + $labor;
-            $due = $total - $depositApplied;
+            $due = $total - $depositApplied - $discount;
+            if ($due < 0) {
+                throw new \DomainException('DP dan potongan poin melebihi total tagihan. Kurangi poin yang dipakai.');
+            }
             $mdr = $method === 'qris' ? intdiv($due * $mdrBps * 2 + 10000, 20000) : 0;
 
             $lines = [];
             if ($depositApplied > 0) {
                 $lines[] = ['account' => self::UANG_MUKA, 'debit' => $depositApplied];
+            }
+            if ($discount > 0) {
+                // Potongan poin dicatat sebagai beban promosi, pendapatan tetap penuh.
+                $lines[] = ['account' => $this->ensure(self::BEBAN_POIN), 'debit' => $discount];
             }
             if ($due > 0) {
                 $lines[] = ['account' => $this->moneyAccount($method), 'debit' => $due - $mdr];
@@ -204,9 +212,9 @@ class Transactions
     }
 
     /** Penjualan kasir: pendapatan dan HPP dalam satu jurnal atomik. */
-    public function posSale(int $branchId, string $date, array $items, string $method, int $mdrBps = 0, ?string $receipt = null): Journal
+    public function posSale(int $branchId, string $date, array $items, string $method, int $mdrBps = 0, ?string $receipt = null, int $discount = 0): Journal
     {
-        return $this->completeService($branchId, $date, $items, 0, 0, $method, $mdrBps, $receipt, 'pos', 'Penjualan kasir');
+        return $this->completeService($branchId, $date, $items, 0, 0, $method, $mdrBps, $receipt, 'pos', 'Penjualan kasir', $discount);
     }
 
     /** $method: kas, bank, kode rekening, atau kredit/utang (belum dibayar, masuk utang usaha). */

@@ -5,6 +5,7 @@ namespace App\Domain\Pos;
 use App\Domain\Accounting\LedgerService;
 use App\Domain\Customer\CustomerService;
 use App\Domain\Inventory\InventoryService;
+use App\Domain\Loyalty\LoyaltyService;
 use App\Domain\Transactions;
 use App\Models\Branch;
 use App\Models\PosSale;
@@ -21,6 +22,7 @@ class PosService
         private LedgerService $ledger,
         private InventoryService $inventory,
         private CustomerService $customers,
+        private LoyaltyService $loyalty,
     ) {
     }
 
@@ -28,7 +30,7 @@ class PosService
      * Checkout kasir. $items: [['product_id' => 1, 'qty' => 2, 'price' => 120000 (opsional, default harga jual)]].
      * Pendapatan, HPP, stok, dan struk disimpan dalam satu transaksi database: gagal satu, batal semua.
      */
-    public function checkout(User $cashier, int $branchId, string $date, array $items, string $method, ?string $customerContact = null): PosSale
+    public function checkout(User $cashier, int $branchId, string $date, array $items, string $method, ?string $customerContact = null, int $redeemPoints = 0): PosSale
     {
         if (! $cashier->can('post-sales')) {
             throw new DomainException('Anda tidak punya izin untuk berjualan di Kasir. Hubungi pemilik toko.');
@@ -63,14 +65,15 @@ class PosService
         $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
         $customer = $this->customers->resolveContact($customerContact);
 
-        return DB::transaction(function () use ($cashier, $branchId, $date, $lines, $method, $mdrBps, $customer) {
+        return DB::transaction(function () use ($cashier, $branchId, $date, $lines, $method, $mdrBps, $customer, $redeemPoints) {
             $receiptNo = $this->nextReceiptNo($branchId, $date);
+            $total = array_sum(array_map(fn ($l) => $l['qty'] * $l['price'], $lines));
+            $discount = $this->loyalty->discountFor($customer, $redeemPoints, $total, $total);
             $journal = $this->transactions->posSale($branchId, $date, array_map(
                 fn ($l) => ['sku' => $l['sku'], 'qty' => $l['qty'], 'price' => $l['price']], $lines,
-            ), $method, $mdrBps, $receiptNo);
+            ), $method, $mdrBps, $receiptNo, $discount);
 
-            $total = array_sum(array_map(fn ($l) => $l['qty'] * $l['price'], $lines));
-            $mdr = $method === 'qris' ? intdiv($total * $mdrBps * 2 + 10000, 20000) : 0;
+            $mdr = $method === 'qris' ? intdiv(($total - $discount) * $mdrBps * 2 + 10000, 20000) : 0;
 
             $sale = PosSale::create([
                 'branch_id' => $branchId,
@@ -81,6 +84,8 @@ class PosService
                 'payment_method' => $method,
                 'total' => $total,
                 'mdr' => $mdr,
+                'discount' => $discount,
+                'points_redeemed' => $redeemPoints,
                 'journal_id' => $journal->id,
             ]);
 
@@ -90,6 +95,8 @@ class PosService
                     'unit_price' => $l['price'], 'line_total' => $l['qty'] * $l['price'],
                 ]);
             }
+
+            $this->loyalty->record($customer, 'pos_sale', $sale->id, $redeemPoints, $total - $discount, $cashier->id);
 
             return $sale->load('items.product');
         });
@@ -121,8 +128,8 @@ class PosService
                 throw new DomainException('Struk ini sudah dibatalkan sebelumnya.');
             }
 
-            // Uang yang dikembalikan sama dengan yang diterima toko: total dikurangi biaya QRIS.
-            $this->transactions->assertFunds($sale->branch_id, $date, $sale->payment_method, (int) $sale->total - (int) $sale->mdr);
+            // Uang yang dikembalikan sama dengan yang diterima toko: total dikurangi potongan poin dan biaya QRIS.
+            $this->transactions->assertFunds($sale->branch_id, $date, $sale->payment_method, (int) $sale->total - (int) $sale->discount - (int) $sale->mdr);
 
             $reversal = $this->ledger->reverse(\App\Models\Journal::findOrFail($sale->journal_id), $date, $user->id);
             foreach (StockMovement::where('branch_id', $sale->branch_id)->where('reference', $sale->receipt_no)->where('direction', 'out')->where('reason', 'penjualan')->get() as $m) {
@@ -130,6 +137,7 @@ class PosService
             }
 
             $sale->update(['voided_at' => now(), 'voided_by' => $user->id, 'void_reason' => mb_substr($reason, 0, 200), 'void_journal_id' => $reversal->id]);
+            $this->loyalty->reverse('pos_sale', $sale->id, $user->id);
 
             return $sale;
         });

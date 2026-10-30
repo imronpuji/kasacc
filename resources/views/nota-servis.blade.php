@@ -19,8 +19,9 @@
 <tr><td>Ongkos jasa</td><td class="r">{{ $rp($t->labor_fee) }}</td></tr>
 <tr><td>Sparepart</td><td class="r">{{ $rp($t->parts_total) }}</td></tr>
 <tr><td><b>Total</b></td><td class="r"><b>{{ $rp($t->total) }}</b></td></tr>
+@if ($t->discount > 0)<tr><td>Potongan poin ({{ number_format($t->points_redeemed, 0, ',', '.') }} poin)</td><td class="r">-{{ $rp($t->discount) }}</td></tr>@endif
 <tr><td>DP dibayar</td><td class="r">{{ $rp($t->deposit) }}</td></tr>
-<tr><td><b>Sisa dibayar</b></td><td class="r"><b>{{ $rp(max($t->total - $t->deposit, 0)) }}</b></td></tr>
+<tr><td><b>Sisa dibayar</b></td><td class="r"><b>{{ $rp(max($t->total - $t->discount - $t->deposit, 0)) }}</b></td></tr>
 @elseif ($t->status === 'batal')
 <tr><td>Biaya pengecekan</td><td class="r">{{ $rp($t->labor_fee) }}</td></tr>
 <tr><td>DP dibayar</td><td class="r">{{ $rp($t->deposit) }}</td></tr>

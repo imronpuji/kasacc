@@ -7,6 +7,7 @@
 <div style="text-align:center;font-size:12px">{{ $attrs['address'] ?? '' }}@if (! empty($attrs['address']) && ! empty($attrs['phone']))<br>@endif @if (! empty($attrs['phone']))Telp {{ $attrs['phone'] }}@endif</div>
 @endif
 <hr>
+@if ($sale->voided_at)<div style="text-align:center;font-weight:bold;border:2px solid #000;padding:4px;margin-bottom:6px">STRUK DIBATALKAN</div>@endif
 <div>{{ $sale->receipt_no }}<br>{{ $sale->sold_on->format('d/m/Y') }} {{ $sale->created_at?->timezone(config('kasir.timezone', config('app.timezone')))->format('H:i') }}<br>Kasir: {{ $sale->cashier->name ?? '-' }}</div><hr>
 <table>@foreach ($sale->items as $i)<tr><td colspan="2">{{ $i->product->name }}</td></tr>
 <tr><td>{{ $i->qty }} x {{ number_format($i->unit_price,0,',','.') }}</td><td class="r">{{ number_format($i->line_total,0,',','.') }}</td></tr>@endforeach</table><hr>

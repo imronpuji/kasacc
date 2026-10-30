@@ -2,18 +2,24 @@
 
 namespace App\Domain\Pos;
 
+use App\Domain\Accounting\LedgerService;
+use App\Domain\Inventory\InventoryService;
 use App\Domain\Transactions;
 use App\Models\Branch;
 use App\Models\PosSale;
 use App\Models\Product;
+use App\Models\StockMovement;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 class PosService
 {
-    public function __construct(private Transactions $transactions)
-    {
+    public function __construct(
+        private Transactions $transactions,
+        private LedgerService $ledger,
+        private InventoryService $inventory,
+    ) {
     }
 
     /**
@@ -82,6 +88,46 @@ class PosService
             }
 
             return $sale->load('items.product');
+        });
+    }
+
+    /**
+     * Batalkan satu struk penuh: jurnal dibalik, stok kembali dengan biaya semula, struk ditandai batal.
+     * Hanya yang berwenang (pemilik atau penyetuju), harus ada alasan, dan uang pengembalian harus ada saldonya.
+     */
+    public function void(User $user, string $receiptNo, string $date, string $reason): PosSale
+    {
+        if (! $user->can('void-sales')) {
+            throw new DomainException('Anda tidak berwenang membatalkan struk. Minta pemilik atau penyetuju yang ditunjuk.');
+        }
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new DomainException('Alasan pembatalan harus diisi, misalnya "pelanggan batal" atau "salah input barang".');
+        }
+
+        return DB::transaction(function () use ($user, $receiptNo, $date, $reason) {
+            $sale = PosSale::where('receipt_no', $receiptNo)->lockForUpdate()->first();
+            if (! $sale) {
+                throw new DomainException('Nomor struk tidak ditemukan. Periksa nomor yang tercetak di struk.');
+            }
+            if (! $user->canAccessBranch($sale->branch_id)) {
+                throw new DomainException('Anda tidak punya akses ke cabang struk ini. Pilih cabang lain atau hubungi pemilik toko.');
+            }
+            if ($sale->voided_at) {
+                throw new DomainException('Struk ini sudah dibatalkan sebelumnya.');
+            }
+
+            // Uang yang dikembalikan sama dengan yang diterima toko: total dikurangi biaya QRIS.
+            $this->transactions->assertFunds($sale->branch_id, $date, $sale->payment_method, (int) $sale->total - (int) $sale->mdr);
+
+            $reversal = $this->ledger->reverse(\App\Models\Journal::findOrFail($sale->journal_id), $date, $user->id);
+            foreach (StockMovement::where('branch_id', $sale->branch_id)->where('reference', $sale->receipt_no)->where('direction', 'out')->where('reason', 'penjualan')->get() as $m) {
+                $this->inventory->receive($sale->branch_id, $m->product_id, $m->qty, (int) $m->total_cost, $date, 'retur penjualan', $sale->receipt_no);
+            }
+
+            $sale->update(['voided_at' => now(), 'voided_by' => $user->id, 'void_reason' => mb_substr($reason, 0, 200), 'void_journal_id' => $reversal->id]);
+
+            return $sale;
         });
     }
 

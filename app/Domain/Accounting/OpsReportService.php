@@ -9,7 +9,7 @@ class OpsReportService
     /** Penjualan kasir per hari: jumlah struk, total, MDR, per metode bayar. */
     public function dailySales(?int $branchId, string $from, string $to): array
     {
-        return DB::table('pos_sales')
+        return DB::table('pos_sales')->whereNull('voided_at')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('sold_on', [$from, $to])
             ->groupBy('sold_on', 'payment_method')->orderBy('sold_on')

@@ -10,6 +10,8 @@ use App\Models\StockBalance;
 use BackedEnum;
 use DomainException;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -150,6 +152,36 @@ class Kasir extends Page
     public function getTotalProperty(): int
     {
         return (int) collect($this->cart)->sum(fn ($i) => (int) $i['qty'] * (int) $i['price']);
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('batalStruk')->label('Batalkan struk')->color('danger')->icon(Heroicon::OutlinedArrowUturnLeft)
+                ->visible(fn () => auth()->user()?->can('void-sales') ?? false)
+                ->modalHeading('Batalkan struk')->modalDescription('Seluruh isi struk dibatalkan: uang dikembalikan ke pelanggan dan stok barang kembali. Tidak bisa dibatalkan lagi.')
+                ->modalSubmitActionLabel('Ya, batalkan struk')
+                ->schema([
+                    TextInput::make('receipt_no')->label('Nomor struk')->placeholder('Contoh: POS-PUSAT-20271001-0007')->required()
+                        ->helperText('Nomor ada di bagian atas struk yang dicetak.'),
+                    Textarea::make('reason')->label('Alasan pembatalan')->placeholder('Contoh: pelanggan batal beli, atau salah input barang')->required()->maxLength(200),
+                ])
+                ->action(function (array $data) {
+                    try {
+                        $sale = app(PosService::class)->void(auth()->user(), trim($data['receipt_no']), now()->toDateString(), $data['reason']);
+                    } catch (DomainException|\InvalidArgumentException $e) {
+                        Notification::make()->title('Struk belum dibatalkan')->body($e->getMessage())->danger()->send();
+
+                        return;
+                    } catch (\Throwable $e) {
+                        report($e);
+                        Notification::make()->title('Struk belum dibatalkan')->body('Terjadi kesalahan. Coba lagi, kalau masih gagal hubungi pemilik toko.')->danger()->send();
+
+                        return;
+                    }
+                    Notification::make()->title('Struk dibatalkan')->body($sale->receipt_no.': uang dikembalikan dan stok barang kembali.')->success()->send();
+                }),
+        ];
     }
 
     public function checkout(): void

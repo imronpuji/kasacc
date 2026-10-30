@@ -95,3 +95,44 @@ it('nomor struk dan nomor servis urut per cabang per hari', function () {
     $b = $pos->checkout($cashier, $this->branch->id, '2026-11-05', [['product_id' => $id, 'qty' => 1]], 'kas');
     expect($a->receipt_no)->toEndWith('-0001')->and($b->receipt_no)->toEndWith('-0002');
 });
+
+function voidSetup(): array
+{
+    $t = test();
+    $cashier = accUser('cashier', $t->branch);
+    $owner = accUser('owner', $t->branch);
+    Product::create(['sku' => 'CS1', 'name' => 'Casing', 'kind' => 'barang', 'sale_price' => 50_000]);
+    $t->tx->depositCapital($t->branch->id, '2026-11-01', 5_000_000, 'bank');
+    $t->tx->purchase($t->branch->id, '2026-11-01', 'CS1', 10, 10_000, 'bank');
+    $id = Product::where('sku', 'CS1')->value('id');
+    $sale = app(\App\Domain\Pos\PosService::class)->checkout($cashier, $t->branch->id, '2026-11-05', [['product_id' => $id, 'qty' => 3]], 'kas');
+
+    return [$cashier, $owner, $sale, $id];
+}
+
+it('retur: batalkan struk mengembalikan stok dan uang, dan hanya sekali', function () {
+    [$cashier, $owner, $sale, $id] = voidSetup();
+    $stokSebelum = app(\App\Domain\Inventory\InventoryService::class)->balance($this->branch->id, $id);
+    expect($stokSebelum->qty)->toBe(7);
+    $kasSebelum = DB::table('journal_lines as l')->join('accounts as a', 'a.id', '=', 'l.account_id')->where('a.code', '1-1100')->selectRaw('sum(l.debit)-sum(l.credit) as n')->value('n');
+
+    $void = app(\App\Domain\Pos\PosService::class)->void($owner, $sale->receipt_no, '2026-11-05', 'pelanggan batal');
+    $stok = app(\App\Domain\Inventory\InventoryService::class)->balance($this->branch->id, $id);
+    $kas = DB::table('journal_lines as l')->join('accounts as a', 'a.id', '=', 'l.account_id')->where('a.code', '1-1100')->selectRaw('sum(l.debit)-sum(l.credit) as n')->value('n');
+
+    expect($void->voided_at)->not->toBeNull()->and($void->void_reason)->toBe('pelanggan batal');
+    expect($stok->qty)->toBe(10)->and($stok->value)->toBe(100_000);
+    expect((int) $kas)->toBe((int) $kasSebelum - 150_000);
+    expect(app(\App\Domain\Accounting\OpsReportService::class)->dailySales($this->branch->id, '2026-11-01', '2026-11-30'))->toBe([]);
+    expect(fn () => app(\App\Domain\Pos\PosService::class)->void($owner, $sale->receipt_no, '2026-11-05', 'lagi'))->toThrow(DomainException::class, 'sudah dibatalkan');
+});
+
+it('retur: kasir tidak boleh membatalkan struk, alasan wajib, nomor harus ada', function () {
+    [$cashier, $owner, $sale] = voidSetup();
+    $svc = app(\App\Domain\Pos\PosService::class);
+
+    expect(fn () => $svc->void($cashier, $sale->receipt_no, '2026-11-05', 'x'))->toThrow(DomainException::class, 'tidak berwenang');
+    expect(fn () => $svc->void($owner, $sale->receipt_no, '2026-11-05', '  '))->toThrow(DomainException::class, 'Alasan');
+    expect(fn () => $svc->void($owner, 'POS-NOPE-1', '2026-11-05', 'x'))->toThrow(DomainException::class, 'tidak ditemukan');
+    expect($sale->fresh()->voided_at)->toBeNull();
+});

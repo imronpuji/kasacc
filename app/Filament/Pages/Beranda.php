@@ -47,7 +47,7 @@ class Beranda extends Dashboard
 
         $kpis = [];
         if ($u->can('post-sales') || $u->can('view-reports')) {
-            $sales = $scope(DB::table('pos_sales'))->where('sold_on', $today);
+            $sales = $scope(DB::table('pos_sales'))->whereNull('voided_at')->where('sold_on', $today);
             $kpis[] = ['label' => 'Penjualan hari ini', 'value' => $rp((clone $sales)->sum('total')), 'note' => (clone $sales)->count().' transaksi kasir', 'tone' => '#0E7A4F'];
         }
         if ($u->can('manage-services') || $u->can('view-reports')) {

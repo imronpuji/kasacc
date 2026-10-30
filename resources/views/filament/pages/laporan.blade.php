@@ -17,6 +17,7 @@
         'penjualan' => ['Penjualan dan servis', 'Per hari dan per teknisi'],
         'kas' => ['Uang masuk dan keluar', 'Dari mana uang datang dan pergi'],
         'utang' => ['Utang ke pemasok', 'Yang belum dibayar dan sudah berapa lama'],
+        'bukti' => ['Bukti potong PPh 21', 'Pajak gaji karyawan setahun'],
     ];
     $salesTotal = collect($ops['daily'])->sum('total');
     if ($report === 'untung') { $hl = [$income['net_income'] < 0 ? 'Usaha Anda rugi' : 'Usaha Anda untung', $rpp(abs($income['net_income'])), $margin !== null ? 'Dari tiap Rp100 penjualan, Rp'.$margin.' jadi untung.' : 'Belum ada penjualan pada tanggal ini.', $income['net_income'] < 0]; }
@@ -182,6 +183,22 @@
                         <tr><td>{{ $r['date'] }}</td><td>{{ $r['description'] }}</td><td>{{ $r['age_days'] }} hari</td><td class="n">{{ $rp($r['open']) }}</td></tr>
                     @endforeach
                 </table>
+            @endif
+        </section>
+    @elseif ($report === 'bukti')
+        <section class="iz-card " id="bukti-potong">
+            <h2 style="margin-bottom:4px">Bukti potong PPh 21 tahun {{ $buktiYear }}</h2>
+            <div class="iz-task-sub" style="margin-bottom:16px">Dijumlah dari gaji yang sudah disetujui atau dibayar. Tahun diambil dari tanggal akhir periode. Bahan untuk mengisi bukti potong 1721-A1.</div>
+            @if ($bukti)
+                <table class="lp-t lp-grid">
+                    <tr class="h"><td>Nama</td><td>NPWP</td><td>NIK</td><td>Status</td><td class="n">Bulan</td><td class="n">Penghasilan bruto</td><td class="n">Iuran JHT dan JP</td><td class="n">PPh 21 dipotong</td></tr>
+                    @foreach ($bukti as $b)
+                        <tr><td>{{ $b['name'] }}</td><td>{{ $b['npwp'] ?: 'Belum diisi' }}</td><td>{{ $b['nik'] ?: 'Belum diisi' }}</td><td>{{ $b['ptkp'] }}</td><td class="n">{{ $b['months'] }}</td><td class="n">{{ $rp($b['gross']) }}</td><td class="n">{{ $rp($b['emp_jht_jp']) }}</td><td class="n">{{ $rp($b['pph21']) }}</td></tr>
+                    @endforeach
+                    <tr class="tot"><td colspan="5">Total</td><td class="n">{{ $rp(collect($bukti)->sum('gross')) }}</td><td class="n">{{ $rp(collect($bukti)->sum('emp_jht_jp')) }}</td><td class="n">{{ $rp(collect($bukti)->sum('pph21')) }}</td></tr>
+                </table>
+            @else
+                <div class="lp-note">Belum ada gaji yang disetujui pada tahun {{ $buktiYear }}.</div>
             @endif
         </section>
     @else

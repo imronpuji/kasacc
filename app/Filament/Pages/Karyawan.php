@@ -92,6 +92,12 @@ class Karyawan extends Page implements HasTable
                 ->helperText('Tulis angka saja tanpa titik, misal 4500000. Dipakai juga untuk menghitung potongan kalau karyawan tidak masuk tanpa kabar.'),
             TextInput::make('fixed_allowance')->label('Tunjangan tetap per bulan')->prefix('Rp')->inputMode('numeric')->placeholder('0')->numeric()->minValue(0)->default(0)->required()
                 ->helperText('Tunjangan yang sama tiap bulan, misal uang makan. Isi 0 kalau tidak ada.'),
+            TextInput::make('nik')->label('NIK (nomor KTP)')->placeholder('16 angka')->inputMode('numeric')->length(16)->regex('/^\d{16}$/')
+                ->validationMessages(['regex' => 'NIK harus 16 angka, tanpa spasi atau tanda baca.', 'length' => 'NIK harus 16 angka.'])
+                ->helperText('Boleh dikosongkan dulu. Dipakai untuk bukti potong PPh 21 tahunan.'),
+            TextInput::make('npwp')->label('NPWP')->placeholder('15 atau 16 angka')->inputMode('numeric')->regex('/^(\d{15}|\d{16})$/')
+                ->validationMessages(['regex' => 'NPWP harus 15 atau 16 angka, tanpa titik atau strip.'])
+                ->helperText('Boleh dikosongkan kalau karyawan belum punya. Tulis angka saja.'),
             Select::make('ptkp')->label('Status keluarga untuk pajak')->placeholder('Pilih status')->required()
                 ->options([
                     'TK/0' => 'Belum menikah, tanpa tanggungan (TK/0)',
@@ -129,7 +135,9 @@ class Karyawan extends Page implements HasTable
                         ->get()->mapWithKeys(fn ($u) => [$u->id => $u->name.' ('.$u->email.')']))
                     ->helperText('Dengan akun, karyawan bisa absen sendiri lewat HP. Karyawan baru: buat akunnya lewat tombol Tambah karyawan.'),
                 Toggle::make('is_active')->label('Karyawan masih bekerja')->default(true)
-                    ->helperText('Matikan kalau karyawan sudah berhenti. Gajinya tidak dihitung lagi dan dia tidak bisa absen.'),
+                    ->helperText('Matikan kalau karyawan sudah berhenti. Dia tidak bisa absen lagi. Kalau tanggal berhenti diisi, gajinya tetap dihitung sampai bulan itu.'),
+                DatePicker::make('resigned_on')->label('Tanggal berhenti')->placeholder('Kosongkan kalau masih bekerja')
+                    ->helperText('Isi tanggal terakhir bekerja. Gaji tetap dihitung sampai bulan ini, dan pajak PPh 21 setahun dihitung ulang di gaji bulan terakhir. Absen bulan terakhir tetap harus diisi.'),
             ]),
             TextInput::make('commission_pct')->label('Komisi servis (% dari biaya jasa)')->suffix('%')->placeholder('10')->numeric()->minValue(0)->maxValue(100)->step(0.01)->default(0)->required()
                 ->helperText('Isi 10 artinya 10% dari biaya jasa servis yang selesai bulan itu. Isi 0 kalau tidak ada komisi.'),
@@ -140,6 +148,9 @@ class Karyawan extends Page implements HasTable
     {
         $data['commission_bps'] = (int) round(((float) $data['commission_pct']) * 100);
         unset($data['commission_pct']);
+        if (! empty($data['resigned_on'])) {
+            $data['is_active'] = false;
+        }
         if (! empty($data['create_login'])) {
             $user = \App\Models\User::create(['name' => $data['name'], 'email' => $data['login_email'], 'password' => bcrypt($data['login_password'])]);
             $user->assignRole($data['login_role'] ?? 'staff');
@@ -203,7 +214,7 @@ class Karyawan extends Page implements HasTable
                     ->action(fn (array $data) => self::run(fn () => DB::transaction(fn () => Employee::create(self::toRecord($data))), 'Karyawan ditambahkan')),
             ])
             ->recordActions([
-                Action::make('ubah')->label('Ubah')->modalSubmitActionLabel('Simpan perubahan')->fillForm(fn (Employee $record) => $record->only(['branch_id', 'name', 'position', 'hired_on', 'base_salary', 'fixed_allowance', 'ptkp', 'pay_method', 'user_id', 'is_active']) + ['commission_pct' => $record->commission_bps / 100])
+                Action::make('ubah')->label('Ubah')->modalSubmitActionLabel('Simpan perubahan')->fillForm(fn (Employee $record) => $record->only(['branch_id', 'name', 'position', 'hired_on', 'base_salary', 'fixed_allowance', 'ptkp', 'pay_method', 'user_id', 'is_active', 'resigned_on', 'npwp', 'nik']) + ['commission_pct' => $record->commission_bps / 100])
                     ->schema(self::employeeFields())
                     ->action(fn (array $data, Employee $record) => self::run(fn () => DB::transaction(fn () => $record->update(self::toRecord($data))), 'Data diperbarui')),
                 Action::make('absensi')->label('Isi absen bulan ini')->modalHeading('Isi absen bulanan')->modalSubmitActionLabel('Simpan absen')

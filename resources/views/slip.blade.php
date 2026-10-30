@@ -24,6 +24,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 0}td.r{t
     <tr><td>Tunjangan tetap</td><td class="r">{{ $rp($s->allowance) }}</td></tr>
     <tr><td>Lembur</td><td class="r">{{ $rp($s->overtime) }}</td></tr>
     <tr><td>Komisi servis</td><td class="r">{{ $rp($s->commission) }}</td></tr>
+    @if ($s->thr > 0)<tr><td>Tunjangan hari raya (THR)</td><td class="r">{{ $rp($s->thr) }}</td></tr>@endif
     <tr><td>Potongan alpa</td><td class="r">-{{ $rp($s->absence_deduction) }}</td></tr>
     <tr><td>Potongan terlambat</td><td class="r">-{{ $rp($s->late_deduction) }}</td></tr>
     <tr class="tot"><td>Gaji kotor (setelah potongan absen)</td><td class="r">{{ $rp($s->income) }}</td></tr>

@@ -93,7 +93,9 @@ class Payroll extends Page implements HasTable
                     Select::make('branch_id')->label('Cabang')->placeholder('Pilih cabang')->options(fn () => Branch::pluck('name', 'id'))->required()->helperText('Gaji dihitung untuk semua karyawan yang masih bekerja di cabang ini.'),
                     Select::make('month')->label('Bulan gaji')->options(self::months())->default((int) now()->month)->required()->helperText('Absen bulan itu harus sudah diisi untuk semua karyawan.'),
                     TextInput::make('year')->label('Tahun gaji')->placeholder('Contoh: '.now()->year)->numeric()->default((int) now()->year)->required(),
-                ])->action(fn (array $data) => self::run(fn ($u) => app(PayrollService::class)->generate($u, (int) $data['branch_id'], (int) $data['year'], (int) $data['month']), 'Gaji sudah dihitung. Minta orang lain menyetujui.')),
+                    \Filament\Forms\Components\Toggle::make('with_thr')->label('Termasuk THR bulan ini')->default(false)
+                        ->helperText('Nyalakan hanya di bulan THR dibayarkan, misal bulan Lebaran. Masa kerja 12 bulan atau lebih dapat 1 bulan gaji, 1-11 bulan dapat sebagian, kurang dari 1 bulan tidak dapat. THR hanya bisa sekali setahun.'),
+                ])->action(fn (array $data) => self::run(fn ($u) => app(PayrollService::class)->generate($u, (int) $data['branch_id'], (int) $data['year'], (int) $data['month'], (bool) ($data['with_thr'] ?? false)), 'Gaji sudah dihitung. Minta orang lain menyetujui.')),
             ])
             ->recordActions([
                 Action::make('slip')->label('Slip gaji')->url(fn ($record) => route('slip', $record->id))->openUrlInNewTab(),

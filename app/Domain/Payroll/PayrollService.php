@@ -22,32 +22,60 @@ class PayrollService
     {
     }
 
-    public function generate(User $user, int $branchId, int $year, int $month): PayrollRun
+    /** @param bool $withThr true = gaji bulan ini memuat THR (maksimal sekali setahun per cabang). */
+    public function generate(User $user, int $branchId, int $year, int $month, bool $withThr = false): PayrollRun
     {
         $this->hr->authorize($user);
 
-        return DB::transaction(function () use ($user, $branchId, $year, $month) {
-            $run = PayrollRun::where('branch_id', $branchId)->where('year', $year)->where('month', $month)->where('status', '<>', 'batal')->first();
+        return DB::transaction(function () use ($user, $branchId, $year, $month, $withThr) {
+            $run = PayrollRun::where('branch_id', $branchId)->where('year', $year)->where('month', $month)->where('status', '<>', 'batal')->lockForUpdate()->first();
             if ($run && $run->status !== 'draft') {
                 throw new DomainException('Gaji bulan ini sudah ada dan berstatus '.($run->status === 'disetujui' ? 'disetujui' : 'sudah dibayar').'. Minta penyetuju membatalkannya dulu kalau perlu dihitung ulang.');
+            }
+            if ($withThr) {
+                $other = PayrollRun::where('branch_id', $branchId)->where('year', $year)->where('status', '<>', 'batal')
+                    ->when($run, fn ($q) => $q->where('id', '<>', $run->id))->whereHas('slips', fn ($q) => $q->where('thr', '>', 0))->first();
+                if ($other) {
+                    throw new DomainException(sprintf('THR tahun %d sudah dibayarkan di gaji %02d/%d. THR hanya sekali setahun; batalkan gaji itu dulu kalau salah.', $year, $other->month, $other->year));
+                }
             }
             $run ??= PayrollRun::create(['branch_id' => $branchId, 'year' => $year, 'month' => $month, 'created_by' => $user->id]);
             $run->slips()->delete();
 
             $monthEnd = CarbonImmutable::create($year, $month, 1)->endOfMonth();
-            $employees = Employee::where('branch_id', $branchId)->where('is_active', true)->whereDate('hired_on', '<=', $monthEnd)->orderBy('id')->get();
+            $monthStart = $monthEnd->startOfMonth()->toDateString();
+            // Bila tanggal berhenti terisi, ia yang menentukan ikut tidaknya; is_active hanya dipakai kalau kosong.
+            $employees = Employee::where('branch_id', $branchId)->whereDate('hired_on', '<=', $monthEnd)
+                ->where(fn ($q) => $q->where(fn ($w) => $w->whereNull('resigned_on')->where('is_active', true))->orWhereDate('resigned_on', '>=', $monthStart))
+                ->orderBy('id')->get();
             if ($employees->isEmpty()) {
                 throw new DomainException('Belum ada karyawan aktif di cabang ini. Tambahkan karyawan di menu Karyawan dan absensi, atau pilih cabang lain.');
             }
             foreach ($employees as $e) {
-                $run->slips()->create($this->computeSlip($e, $year, $month));
+                $slip = $run->slips()->create($this->computeSlip($e, $year, $month, $withThr));
+                if ($slip->commission > 0) {
+                    // Tiket ditandai saat draf dihitung supaya tiket yang selesai sesudahnya tidak ikut ditandai terbayar.
+                    $this->commissionTickets($e, $year, $month)->update(['payroll_slip_id' => $slip->id]);
+                }
             }
 
             return $run->fresh();
         });
     }
 
-    private function computeSlip(Employee $e, int $year, int $month): array
+    /** THR: satu bulan upah untuk masa kerja 12 bulan atau lebih, masa kerja/12 untuk 1-11 bulan, nol di bawah 1 bulan. */
+    private function thrAmount(Employee $e, int $year, int $month): int
+    {
+        $monthEnd = CarbonImmutable::create($year, $month, 1)->endOfMonth();
+        $months = (int) $e->hired_on->startOfDay()->diffInMonths($monthEnd->addDay()->startOfDay(), true);
+        if ($months < 1) {
+            return 0;
+        }
+
+        return $months >= 12 ? $e->upah() : intdiv($e->upah() * $months * 2 + 12, 24);
+    }
+
+    private function computeSlip(Employee $e, int $year, int $month, bool $withThr = false): array
     {
         $att = Attendance::where('employee_id', $e->id)->where('year', $year)->where('month', $month)->first();
         if (! $att) {
@@ -69,13 +97,15 @@ class PayrollService
             $fees = (int) $this->commissionTickets($e, $year, $month)->sum('labor_fee');
             $commission = $pct($fees, $e->commission_bps);
         }
-        $income = (int) $e->base_salary + (int) $e->fixed_allowance + $overtime + $commission - $absence - $late;
+        $thr = $withThr ? $this->thrAmount($e, $year, $month) : 0;
+        // THR menambah penghasilan bruto untuk PPh 21, tetapi dasar BPJS tetap dari upah ($upah).
+        $income = (int) $e->base_salary + (int) $e->fixed_allowance + $overtime + $commission + $thr - $absence - $late;
 
         $kesBase = min($upah, $g('kes_cap'));
         $jpBase = min($upah, $g('jp_cap'));
         $slip = [
             'employee_id' => $e->id, 'base' => (int) $e->base_salary, 'allowance' => (int) $e->fixed_allowance,
-            'overtime' => $overtime, 'commission' => $commission, 'absence_deduction' => $absence, 'late_deduction' => $late,
+            'overtime' => $overtime, 'commission' => $commission, 'thr' => $thr, 'absence_deduction' => $absence, 'late_deduction' => $late,
             'income' => $income,
             'emp_kes' => $pct($kesBase, $g('kes_emp')), 'emp_jht' => $pct($upah, $g('jht_emp')), 'emp_jp' => $pct($jpBase, $g('jp_emp')),
             'er_kes' => $pct($kesBase, $g('kes_er')), 'er_jht' => $pct($upah, $g('jht_er')), 'er_jp' => $pct($jpBase, $g('jp_er')),
@@ -93,12 +123,12 @@ class PayrollService
         if (! $g('pph21_on')) {
             $slip['ter_bps'] = 0;
             $slip['pph21'] = 0;
-        } elseif ($month < 12) {
+        } elseif ($month < 12 && ! ($e->resigned_on && $e->resigned_on->year === $year && $e->resigned_on->month === $month)) {
             $slip['ter_bps'] = $this->tax->terBps($category, $taxGross);
             $slip['pph21'] = $pct($taxGross, $slip['ter_bps']);
         } else {
             $prior = PayrollSlip::where('employee_id', $e->id)
-                ->whereHas('run', fn ($q) => $q->whereIn('status', ['disetujui', 'dibayar'])->where('year', $year)->where('month', '<', 12))->get();
+                ->whereHas('run', fn ($q) => $q->whereIn('status', ['disetujui', 'dibayar'])->where('year', $year)->where('month', '<', $month))->get();
             $annual = $prior->sum('tax_gross') + $taxGross;
             $jhtJp = $prior->sum(fn ($s) => $s->emp_jht + $s->emp_jp) + $slip['emp_jht'] + $slip['emp_jp'];
             $slip['ter_bps'] = 0;
@@ -118,8 +148,17 @@ class PayrollService
     {
         $start = CarbonImmutable::create($year, $month, 1);
 
+        // Tiket telat dari bulan sebelumnya ikut dibayar, tapi hanya sejak bulan gaji pertama karyawan ini lewat sistem
+        // (tiket yang lebih lama dibayar lewat cara lama dan tidak boleh membanjiri gaji pertama).
+        $first = PayrollRun::where('status', '<>', 'batal')->whereHas('slips', fn ($q) => $q->where('employee_id', $e->id))
+            ->orderBy('year')->orderBy('month')->first();
+        $from = $first ? CarbonImmutable::create($first->year, $first->month, 1) : $start;
+        if ($from->gt($start)) {
+            $from = $start;
+        }
+
         return ServiceTicket::where('technician_id', $e->user_id)->where('status', 'selesai')
-            ->whereNull('payroll_slip_id')->whereBetween('closed_on', [$start->toDateString(), $start->endOfMonth()->toDateString()]);
+            ->whereNull('payroll_slip_id')->whereBetween('closed_on', [$from->toDateString(), $start->endOfMonth()->toDateString()]);
     }
 
     /** Daftar cicilan kasbon aktif yang akan dipotong: [advance, amount]. */
@@ -140,7 +179,17 @@ class PayrollService
         }
 
         return DB::transaction(function () use ($user, $run, $date) {
+            // Muat ulang dengan kunci baris supaya dua penyetuju yang menekan bersamaan tidak sama-sama lolos.
+            $run = PayrollRun::lockForUpdate()->findOrFail($run->id);
+            if ($run->status !== 'draft') {
+                throw new DomainException('Gaji ini sudah diproses orang lain. Muat ulang halaman untuk melihat status terbaru.');
+            }
             $slips = $run->slips()->with('employee')->get();
+            foreach ($slips as $slip) {
+                if ($slip->advance_deduction > 0 && (int) $this->advanceDeductions($slip->employee)->sum('amount') < $slip->advance_deduction) {
+                    throw new DomainException("Kasbon {$slip->employee->name} berubah sejak gaji dihitung. Hitung ulang gaji dulu.");
+                }
+            }
             $sum = fn (string $c) => (int) $slips->sum($c);
             $erBpjs = $sum('er_kes') + $sum('er_jht') + $sum('er_jp') + $sum('er_jkk') + $sum('er_jkm');
             $empBpjs = $sum('emp_kes') + $sum('emp_jht') + $sum('emp_jp');
@@ -177,9 +226,6 @@ class PayrollService
                         $left -= $take;
                     }
                 }
-                if ($slip->commission > 0) {
-                    $this->commissionTickets($slip->employee, $run->year, $run->month)->update(['payroll_slip_id' => $slip->id]);
-                }
             }
 
             $run->update(['status' => 'disetujui', 'approved_by' => $user->id, 'journal_id' => $journal->id]);
@@ -199,6 +245,13 @@ class PayrollService
         }
 
         return DB::transaction(function () use ($user, $run, $date, $bankSource, $cashSource) {
+            $run = PayrollRun::lockForUpdate()->findOrFail($run->id);
+            if ($run->status === 'dibayar') {
+                throw new DomainException('Gaji ini sudah dibayar. Tidak perlu dibayar lagi.');
+            }
+            if ($run->status !== 'disetujui') {
+                throw new DomainException('Gaji ini sudah diproses orang lain. Muat ulang halaman untuk melihat status terbaru.');
+            }
             $slips = $run->slips;
             $bank = (int) $slips->where('pay_method', 'bank')->sum('net_pay');
             $tunai = (int) $slips->where('pay_method', '<>', 'bank')->sum('net_pay');
@@ -235,16 +288,24 @@ class PayrollService
         }
 
         return DB::transaction(function () use ($user, $run, $date) {
+            $run = PayrollRun::lockForUpdate()->findOrFail($run->id);
+            if ($run->status === 'dibayar') {
+                throw new DomainException('Gaji yang sudah dibayar tidak bisa dibatalkan.');
+            }
+            if ($run->status === 'batal') {
+                throw new DomainException('Gaji ini sudah dibatalkan sebelumnya.');
+            }
+            $slipIds = $run->slips()->pluck('id');
             if ($run->journal_id) {
                 $this->ledger->reverse(Journal::findOrFail($run->journal_id), $date, $user->id);
-                $slipIds = $run->slips()->pluck('id');
                 foreach (DB::table('advance_payments')->whereIn('payroll_slip_id', $slipIds)->get() as $p) {
                     $a = EmployeeAdvance::findOrFail($p->employee_advance_id);
                     $a->update(['balance' => $a->balance + $p->amount, 'installments_paid' => $a->installments_paid - 1, 'status' => 'aktif']);
                 }
                 DB::table('advance_payments')->whereIn('payroll_slip_id', $slipIds)->delete();
-                ServiceTicket::whereIn('payroll_slip_id', $slipIds)->update(['payroll_slip_id' => null]);
             }
+            // Tiket ditandai sejak draf dihitung, jadi dilepas juga saat draf dibatalkan.
+            ServiceTicket::whereIn('payroll_slip_id', $slipIds)->update(['payroll_slip_id' => null]);
             $run->update(['status' => 'batal']);
 
             return $run->fresh();

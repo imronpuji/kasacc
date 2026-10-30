@@ -7,6 +7,29 @@ use Illuminate\Support\Facades\DB;
 
 class ReportService
 {
+    /**
+     * Data bukti potong PPh 21 tahunan (1721-A1) per karyawan, dijumlah dari slip gaji yang disetujui atau dibayar.
+     *
+     * @return list<array{employee_id:int, name:string, npwp:?string, nik:?string, ptkp:string, months:int, gross:int, emp_jht_jp:int, pph21:int}>
+     */
+    public function buktiPotong(?int $branchId, int $year): array
+    {
+        $q = DB::table('payroll_slips as s')
+            ->join('payroll_runs as r', 'r.id', '=', 's.payroll_run_id')
+            ->join('employees as e', 'e.id', '=', 's.employee_id')
+            ->whereIn('r.status', ['disetujui', 'dibayar'])->where('r.year', $year)
+            ->groupBy('e.id', 'e.name', 'e.npwp', 'e.nik', 'e.ptkp')->orderBy('e.name')
+            ->selectRaw('e.id, e.name, e.npwp, e.nik, e.ptkp, count(*) as months, sum(s.tax_gross) as gross, sum(s.emp_jht + s.emp_jp) as emp_jht_jp, sum(s.pph21) as pph21');
+        if ($branchId) {
+            $q->where('r.branch_id', $branchId);
+        }
+
+        return $q->get()->map(fn ($r) => [
+            'employee_id' => (int) $r->id, 'name' => $r->name, 'npwp' => $r->npwp, 'nik' => $r->nik, 'ptkp' => $r->ptkp,
+            'months' => (int) $r->months, 'gross' => (int) $r->gross, 'emp_jht_jp' => (int) $r->emp_jht_jp, 'pph21' => (int) $r->pph21,
+        ])->all();
+    }
+
     /** Saldo per akun (debit - kredit) sampai tanggal tertentu; $branchId null = konsolidasi semua cabang. */
     private function netByAccount(?int $branchId, ?string $from, ?string $to): array
     {

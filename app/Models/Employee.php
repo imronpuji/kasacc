@@ -8,7 +8,7 @@ class Employee extends Model
 {
     protected $guarded = [];
 
-    protected $casts = ['hired_on' => 'date', 'is_active' => 'boolean'];
+    protected $casts = ['hired_on' => 'date', 'resigned_on' => 'date', 'is_active' => 'boolean'];
 
     public function branch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {

@@ -477,3 +477,17 @@ it('laporan: tanggal ngawur atau terbalik tidak membuat error', function () {
 it('panel memakai tema terang tetap supaya teks tidak hilang di komputer bermode gelap', function () {
     expect(Filament\Facades\Filament::getPanel('admin')->hasDarkMode())->toBeFalse();
 });
+
+it('nota servis bisa dicetak oleh yang berhak dan menolak cabang lain atau tamu', function () {
+    $t = App\Models\ServiceTicket::create([
+        'branch_id' => $this->a->id, 'code' => 'SV-NOTA1', 'customer_name' => 'Budi', 'device' => 'iPhone 11', 'complaint' => 'layar pecah',
+        'status' => 'diterima', 'deposit' => 100_000, 'received_on' => '2026-11-10',
+    ]);
+    $this->actingAs($this->owner)->get(route('nota', 'SV-NOTA1'))->assertOk()->assertSee('NOTA SERVIS')->assertSee('Budi')->assertSee('Rp 100.000');
+    $this->actingAs($this->hr)->get(route('nota', 'SV-NOTA1'))->assertForbidden();
+    $this->actingAs(euser('cashier', $this->b->id))->get(route('nota', 'SV-NOTA1'))->assertForbidden(); // cabang lain
+    $this->actingAs($this->cashier)->get(route('nota', 'SV-NOTA1'))->assertOk();
+    $this->actingAs($this->owner)->get(route('nota', 'TIDAK-ADA'))->assertNotFound();
+    auth()->logout();
+    $this->get(route('nota', 'SV-NOTA1'))->assertForbidden();
+});

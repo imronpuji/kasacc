@@ -11,6 +11,13 @@ Route::get('/struk/{receipt}', function (string $receipt) {
     return view('struk', compact('sale'));
 })->middleware('web')->name('struk');
 
+Route::get('/nota/{code}', function (string $code) {
+    $t = App\Models\ServiceTicket::with(['branch', 'technician'])->where('code', $code)->firstOrFail();
+    abort_unless(auth()->user()?->can('manage-services') && auth()->user()->canAccessBranch($t->branch_id), 403);
+
+    return view('nota-servis', compact('t'));
+})->middleware('web')->name('nota');
+
 Route::get('/slip/{run}', function (int $run) {
     $user = auth()->user();
     if (! $user) {

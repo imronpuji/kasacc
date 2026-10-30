@@ -29,6 +29,16 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 0}td.r{t
     <tr><td>Potongan terlambat</td><td class="r">-{{ $rp($s->late_deduction) }}</td></tr>
     <tr class="tot"><td>Gaji kotor (setelah potongan absen)</td><td class="r">{{ $rp($s->income) }}</td></tr>
   </table>
+  @php $tickets = app(\App\Domain\Payroll\PayrollService::class)->slipTickets($s); @endphp
+  @if ($tickets->isNotEmpty())
+  <h2>Rincian komisi servis ({{ rtrim(rtrim(number_format($s->employee->commission_bps / 100, 2, ',', '.'), '0'), ',') }}% dari ongkos servis)</h2>
+  <table>
+    @foreach ($tickets as $t)
+    <tr><td>{{ $t->closed_on?->format('d/m') }} · {{ $t->code }} · {{ $t->device }}</td><td class="r">{{ $rp($t->labor_fee) }}</td></tr>
+    @endforeach
+    <tr class="tot"><td>{{ $tickets->count() }} unit · ongkos {{ $rp($tickets->sum('labor_fee')) }}</td><td class="r">{{ $rp($s->commission) }}</td></tr>
+  </table>
+  @endif
   <h2>Potongan dari gaji</h2>
   <table>
     <tr><td>BPJS Kesehatan</td><td class="r">{{ $rp($s->emp_kes) }}</td></tr>

@@ -136,3 +136,16 @@ it('retur: kasir tidak boleh membatalkan struk, alasan wajib, nomor harus ada', 
     expect(fn () => $svc->void($owner, 'POS-NOPE-1', '2026-11-05', 'x'))->toThrow(DomainException::class, 'tidak ditemukan');
     expect($sale->fresh()->voided_at)->toBeNull();
 });
+
+it('laporan refund dan komplain menghitung struk dibatalkan dan tampil di halaman laporan', function () {
+    [$cashier, $owner, $sale] = voidSetup();
+    app(\App\Domain\Pos\PosService::class)->void($owner, $sale->receipt_no, '2026-11-05', 'pelanggan batal');
+    $today = now()->toDateString();
+
+    $r = app(\App\Domain\Accounting\OpsReportService::class)->problemsReport($this->branch->id, $today, $today);
+    expect($r['void_count'])->toBe(1)->and($r['void_total'])->toBe(150_000)->and($r['voids'][0]['reason'])->toBe('pelanggan batal')
+        ->and($r['cancels'])->toBe([])->and($r['warranty'])->toBe([]);
+
+    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Laporan::class)
+        ->call('setReport', 'masalah')->assertSuccessful()->assertSee('Refund dan komplain')->assertSee($sale->receipt_no);
+});

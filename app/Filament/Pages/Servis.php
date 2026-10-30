@@ -124,6 +124,8 @@ class Servis extends Page implements HasTable
                     }),
             ])
             ->recordActions([
+                Action::make('nota')->label('Cetak nota')->icon(\Filament\Support\Icons\Heroicon::OutlinedPrinter)
+                    ->url(fn (ServiceTicket $r) => route('nota', $r->code), shouldOpenInNewTab: true),
                 Action::make('selesai')->label('Selesai diperbaiki')->visible(fn (ServiceTicket $r) => $r->status === 'diterima')
                     ->modalHeading(fn (ServiceTicket $r) => "Selesai diperbaiki: {$r->code}")
                     ->modalDescription(fn (ServiceTicket $r) => 'Stok sparepart akan berkurang dan pembayaran dicatat. '

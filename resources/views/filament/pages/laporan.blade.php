@@ -17,6 +17,7 @@
         'penjualan' => ['Penjualan dan servis', 'Per hari dan per teknisi'],
         'kas' => ['Uang masuk dan keluar', 'Dari mana uang datang dan pergi'],
         'utang' => ['Utang ke pemasok', 'Yang belum dibayar dan sudah berapa lama'],
+        'masalah' => ['Refund dan komplain', 'Struk dibatalkan, servis batal, klaim garansi'],
         'bukti' => ['Bukti potong PPh 21', 'Pajak gaji karyawan setahun'],
     ];
     $salesTotal = collect($ops['daily'])->sum('total');
@@ -184,6 +185,45 @@
                     @endforeach
                 </table>
             @endif
+        </section>
+    @elseif ($report === 'masalah')
+        @php $pb = $ops['problems']; @endphp
+        <section class="iz-card ">
+            <h2 style="margin-bottom:4px">Refund dan komplain</h2>
+            <div class="iz-task-sub" style="margin-bottom:12px">{{ $fromLabel }} sampai {{ $toLabel }}</div>
+            <table class="lp-t">
+                <tr class="h"><td>Jenis</td><td class="n">Jumlah</td><td class="n">Nilai</td></tr>
+                <tr><td>Struk kasir dibatalkan (uang dikembalikan)</td><td class="n">{{ $pb['void_count'] }}</td><td class="n">{{ $rp($pb['void_total']) }}</td></tr>
+                <tr><td>Servis batal (DP dikembalikan)</td><td class="n">{{ count($pb['cancels']) }}</td><td class="n">{{ $rp($pb['cancel_total']) }}</td></tr>
+                <tr><td>Servis selesai yang kena garansi (komplain)</td><td class="n">{{ count($pb['warranty']) }}</td><td class="n">{{ $rp($pb['warranty_total']) }}</td></tr>
+            </table>
+            <p class="iz-task-sub" style="margin:10px 0 0">Dari {{ $pb['receipts'] + $pb['void_count'] > 0 ? $pb['receipts'] + $pb['void_count'] : 0 }} struk, {{ $pb['void_count'] }} dibatalkan. Dari {{ $pb['services_done'] }} servis selesai, {{ count($pb['warranty']) }} kena garansi.</p>
+        </section>
+        <section class="iz-card ">
+            <h2 style="margin-bottom:8px">Struk yang dibatalkan</h2>
+            <table class="lp-t lp-grid">
+                <tr class="h"><td>Nomor struk</td><td>Dibatalkan</td><td>Alasan</td><td class="n">Nilai</td></tr>
+                @forelse ($pb['voids'] as $r)
+                    <tr><td>{{ $r['receipt_no'] }}</td><td>{{ \Carbon\Carbon::parse($r['voided_on'])->format('d/m/Y') }}</td><td>{{ $r['reason'] ?: '-' }}</td><td class="n">{{ $rp($r['total']) }}</td></tr>
+                @empty
+                    <tr><td colspan="4" class="iz-empty">Tidak ada struk dibatalkan pada tanggal ini.</td></tr>
+                @endforelse
+            </table>
+        </section>
+        <section class="iz-card ">
+            <h2 style="margin-bottom:8px">Servis batal dan klaim garansi</h2>
+            <table class="lp-t lp-grid">
+                <tr class="h"><td>Kode</td><td>Pelanggan</td><td>Perangkat</td><td>Keterangan</td><td class="n">Nilai</td></tr>
+                @foreach ($pb['cancels'] as $r)
+                    <tr><td>{{ $r['code'] }}</td><td>{{ $r['customer'] }}</td><td>{{ $r['device'] }}</td><td>Batal, DP dikembalikan</td><td class="n">{{ $rp($r['refund']) }}</td></tr>
+                @endforeach
+                @foreach ($pb['warranty'] as $r)
+                    <tr><td>{{ $r['code'] }}</td><td>{{ $r['customer'] }}</td><td>{{ $r['device'] }}</td><td>Klaim garansi</td><td class="n">{{ $rp($r['cost']) }}</td></tr>
+                @endforeach
+                @if (! $pb['cancels'] && ! $pb['warranty'])
+                    <tr><td colspan="5" class="iz-empty">Tidak ada servis batal atau klaim garansi pada tanggal ini.</td></tr>
+                @endif
+            </table>
         </section>
     @elseif ($report === 'bukti')
         <section class="iz-card " id="bukti-potong">

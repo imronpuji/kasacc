@@ -49,7 +49,7 @@ class Laporan extends Page implements HasSchemas
 
     public function setReport(string $report): void
     {
-        $this->report = in_array($report, ['untung', 'uang', 'penjualan', 'kas', 'utang', 'bukti', 'admin'], true) ? $report : 'untung';
+        $this->report = in_array($report, ['untung', 'uang', 'penjualan', 'kas', 'utang', 'masalah', 'bukti', 'admin'], true) ? $report : 'untung';
     }
 
     public function setPreset(string $preset): void
@@ -115,6 +115,7 @@ class Laporan extends Page implements HasSchemas
             'ops' => [
                 'daily' => $ops->dailySales($branch, $from, $to),
                 'technicians' => $ops->technicianReport($branch, $from, $to),
+                'problems' => $ops->problemsReport($branch, $from, $to),
                 'cashflow' => $ops->cashFlow($branch, $from, $to),
                 'payables' => $ops->payables($branch, $to),
                 'aging' => $ops->payablesAging($branch, $to),

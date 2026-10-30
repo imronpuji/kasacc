@@ -263,3 +263,21 @@ it('gaji tidak bisa dibayar kalau saldo bank cabang itu tidak cukup', function (
     expect(fn () => $this->pay->pay($this->finance, $run, '2027-02-01'))->toThrow(DomainException::class, 'Saldo');
     expect($run->fresh()->status)->toBe('disetujui');
 });
+
+it('rincian komisi di slip cocok dengan total, termasuk karyawan tanpa gaji pokok', function () {
+    $this->emp->update(['base_salary' => 0, 'fixed_allowance' => 0, 'commission_bps' => 4000]);
+    $this->months = [1];
+    fixAttendance();
+    fixTicket($this->branch->id, $this->tech->id, 300_000, '2027-01-10');
+    fixTicket($this->branch->id, $this->tech->id, 200_000, '2027-01-12');
+    $run = $this->pay->generate($this->finance, $this->branch->id, 2027, 1);
+    $slip = $run->slips()->first();
+
+    $tickets = $this->pay->slipTickets($slip);
+    expect($slip->commission)->toBe(200_000)
+        ->and($tickets)->toHaveCount(2)
+        ->and((int) $tickets->sum('labor_fee') * 4000 / 10000)->toEqual($slip->commission);
+
+    $this->actingAs($this->finance)->get(route('slip', $run->id))->assertOk()
+        ->assertSee('Rincian komisi servis (40% dari ongkos servis)')->assertSee('2 unit');
+});

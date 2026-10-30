@@ -28,6 +28,32 @@ class OpsReportService
             ->get()->map(fn ($r) => ['technician' => $r->technician, 'tickets' => (int) $r->tickets, 'labor' => (int) $r->labor, 'parts' => (int) $r->parts, 'total' => (int) $r->total])->all();
     }
 
+    /** Refund dan komplain: struk dibatalkan, servis batal (DP dikembalikan), dan servis selesai yang kena garansi. */
+    public function problemsReport(?int $branchId, string $from, string $to): array
+    {
+        $voids = DB::table('pos_sales')->whereNotNull('voided_at')
+            ->whereBetween(DB::raw('DATE(voided_at)'), [$from, $to])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->orderBy('voided_at')->get(['receipt_no', 'sold_on', 'voided_at', 'total', 'void_reason'])
+            ->map(fn ($r) => ['receipt_no' => $r->receipt_no, 'sold_on' => (string) $r->sold_on, 'voided_on' => substr((string) $r->voided_at, 0, 10), 'total' => (int) $r->total, 'reason' => $r->void_reason])->all();
+        $receipts = (int) DB::table('pos_sales')->whereNull('voided_at')->whereBetween('sold_on', [$from, $to])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count();
+
+        $tickets = fn (string $status) => DB::table('service_tickets')->where('status', $status)
+            ->whereBetween('closed_on', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+        $cancels = $tickets('batal')->orderBy('closed_on')->get(['code', 'customer_name', 'device', 'closed_on', 'deposit', 'labor_fee'])
+            ->map(fn ($r) => ['code' => $r->code, 'customer' => $r->customer_name, 'device' => $r->device, 'date' => (string) $r->closed_on, 'refund' => max((int) $r->deposit - (int) $r->labor_fee, 0)])->all();
+        $warranty = $tickets('selesai')->where('warranty_cost', '>', 0)->orderBy('closed_on')->get(['code', 'customer_name', 'device', 'closed_on', 'warranty_cost'])
+            ->map(fn ($r) => ['code' => $r->code, 'customer' => $r->customer_name, 'device' => $r->device, 'date' => (string) $r->closed_on, 'cost' => (int) $r->warranty_cost])->all();
+        $done = (int) $tickets('selesai')->count();
+
+        return [
+            'voids' => $voids, 'void_count' => count($voids), 'void_total' => array_sum(array_column($voids, 'total')), 'receipts' => $receipts,
+            'cancels' => $cancels, 'cancel_total' => array_sum(array_column($cancels, 'refund')),
+            'warranty' => $warranty, 'warranty_total' => array_sum(array_column($warranty, 'cost')), 'services_done' => $done,
+        ];
+    }
+
     /** Arus kas (metode langsung): kas + bank, saldo awal, masuk/keluar per sumber jurnal, saldo akhir. */
     public function cashFlow(?int $branchId, string $from, string $to): array
     {

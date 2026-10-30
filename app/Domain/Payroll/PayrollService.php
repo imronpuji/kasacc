@@ -145,6 +145,12 @@ class PayrollService
         return $slip;
     }
 
+    /** Tiket servis yang membentuk komisi slip ini (terkunci ke slip sejak gaji dihitung). */
+    public function slipTickets(PayrollSlip $slip): \Illuminate\Support\Collection
+    {
+        return ServiceTicket::where('payroll_slip_id', $slip->id)->orderBy('closed_on')->orderBy('id')->get();
+    }
+
     private function commissionTickets(Employee $e, int $year, int $month)
     {
         $start = CarbonImmutable::create($year, $month, 1);

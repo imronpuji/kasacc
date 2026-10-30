@@ -93,11 +93,11 @@
             <div class="ks-muted">{{ ['kas' => 'Uang tunai masuk laci kas.', 'bank' => 'Transfer masuk rekening toko.', 'qris' => 'QRIS masuk rekening toko, dipotong biaya QRIS '.$this->qrisRate.'%.'][$method] ?? 'Uang masuk ke '.\App\Domain\Accounting\MoneyAccounts::label($method).'.' }}</div>
 
             <label style="display:flex;flex-direction:column;gap:4px">
-                <span style="font-size:14px;font-weight:600">Nomor HP pelanggan (boleh dikosongkan)</span>
+                <span style="font-size:14px;font-weight:600">Email atau nomor HP pelanggan (boleh dikosongkan)</span>
                 <x-filament::input.wrapper>
-                    <x-filament::input type="tel" inputmode="numeric" wire:model.blur="customerPhone" placeholder="Contoh: 081234567890" />
+                    <x-filament::input type="text" wire:model.blur="customerContact" placeholder="Contoh: budi@email.com atau 081234567890" />
                 </x-filament::input.wrapper>
-                <span class="ks-muted">Isi supaya pelanggan bisa melihat belanjanya di portal pelanggan.</span>
+                <span class="ks-muted">Isi supaya pelanggan bisa melihat belanjanya di portal pelanggan (masuk dengan email).</span>
             </label>
 
             @if ($method === 'kas' && ! empty($cart))

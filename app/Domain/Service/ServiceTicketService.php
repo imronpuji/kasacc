@@ -83,7 +83,7 @@ class ServiceTicketService
             throw new DomainException('Uang muka (DP) tidak boleh minus. Isi 0 kalau tidak ada DP.');
         }
 
-        $customer = $this->customers->resolve($data['customer_name'] ?? null, $data['customer_phone'] ?? null);
+        $customer = $this->customers->resolve($data['customer_name'] ?? null, $data['customer_phone'] ?? null, $data['customer_email'] ?? null);
 
         return DB::transaction(function () use ($user, $branchId, $date, $data, $deposit, $depositMethod, $customer) {
             $ticket = ServiceTicket::create([

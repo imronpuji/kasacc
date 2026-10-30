@@ -16,9 +16,9 @@ class FakeOtpSender implements OtpSender
 {
     public static array $sent = [];
 
-    public function send(string $phone, string $message): void
+    public function send(string $to, string $subject, string $message): void
     {
-        self::$sent[] = [$phone, $message];
+        self::$sent[] = [$to, $message];
     }
 
     public static function lastCode(): ?string
@@ -39,16 +39,16 @@ beforeEach(function () {
     $this->staff->assignRole('cashier');
     $this->staff->branches()->attach($this->branch->id);
     $this->svc = app(ServiceTicketService::class);
-    $this->ticket = fn (string $phone = '0812-3456-7890', string $name = 'Rina') => $this->svc->receive(
-        $this->staff, $this->branch->id, '2026-11-17', ['customer_name' => $name, 'customer_phone' => $phone, 'device' => 'iPhone 12'], 200_000,
+    $this->ticket = fn (string $phone = '0812-3456-7890', string $name = 'Rina', ?string $email = 'rina@email.com') => $this->svc->receive(
+        $this->staff, $this->branch->id, '2026-11-17', ['customer_name' => $name, 'customer_phone' => $phone, 'customer_email' => $email, 'device' => 'iPhone 12'], 200_000,
     );
 });
 
 it('terima HP dengan nomor: pelanggan dibuat sekali per nomor, token lacak dan riwayat proses tercatat', function () {
     $a = ($this->ticket)('0812-3456-7890');
-    $b = ($this->ticket)('+62 812 3456 7890', 'Rina S');
+    $b = ($this->ticket)('+62 812 3456 7890', 'Rina S', ' Rina@Email.com ');
 
-    expect(Customer::count())->toBe(1)->and(Customer::first()->phone)->toBe('081234567890')->and(Customer::first()->name)->toBe('Rina')
+    expect(Customer::count())->toBe(1)->and(Customer::first()->phone)->toBe('081234567890')->and(Customer::first()->email)->toBe('rina@email.com')->and(Customer::first()->name)->toBe('Rina')
         ->and($a->customer_id)->toBe($b->customer_id)->and(strlen($a->public_token))->toBe(32)->and($a->public_token)->not->toBe($b->public_token)
         ->and(DB::table('service_progress_logs')->where('service_ticket_id', $a->id)->count())->toBe(1);
 });
@@ -58,6 +58,8 @@ it('terima HP tanpa nomor tetap jalan tanpa pelanggan, nomor ngawur ditolak', fu
     expect($t->customer_id)->toBeNull()->and($t->public_token)->not->toBeNull();
     expect(fn () => $this->svc->receive($this->staff, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'customer_phone' => '12345', 'device' => 'Y']))
         ->toThrow(DomainException::class, 'tidak valid');
+    expect(fn () => $this->svc->receive($this->staff, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'customer_email' => 'bukan-email', 'device' => 'Y']))
+        ->toThrow(DomainException::class, 'Email pelanggan tidak valid');
 });
 
 it('proses servis diubah staf, tercatat, dan ditolak kalau servis sudah ditutup atau proses ngawur', function () {
@@ -73,52 +75,53 @@ it('kode masuk: sekali pakai, salah 5 kali hangus, nomor tak terdaftar tidak men
     ($this->ticket)();
     $otp = app(OtpService::class);
 
-    $otp->request('0899999999');
+    $otp->request('orang.lain@email.com');
     expect(FakeOtpSender::$sent)->toBe([]);
 
-    $otp->request('081234567890');
+    $otp->request('rina@email.com');
     $code = FakeOtpSender::lastCode();
     expect($code)->toMatch('/^\d{6}$/');
-    expect($otp->verify('+62 812-3456-7890', $code)->phone)->toBe('081234567890');
-    expect(fn () => $otp->verify('081234567890', $code))->toThrow(DomainException::class, 'Kode salah');
+    expect($otp->verify(' RINA@email.com ', $code)->email)->toBe('rina@email.com');
+    expect(fn () => $otp->verify('rina@email.com', $code))->toThrow(DomainException::class, 'Kode salah');
 
-    $otp->request('081234567890');
+    $otp->request('rina@email.com');
     $good = FakeOtpSender::lastCode();
     $wrong = $good === '000000' ? '111111' : '000000';
     for ($i = 0; $i < 5; $i++) {
-        expect(fn () => $otp->verify('081234567890', $wrong))->toThrow(DomainException::class);
+        expect(fn () => $otp->verify('rina@email.com', $wrong))->toThrow(DomainException::class);
     }
-    expect(fn () => $otp->verify('081234567890', $good))->toThrow(DomainException::class, 'Kode salah');
+    expect(fn () => $otp->verify('rina@email.com', $good))->toThrow(DomainException::class, 'Kode salah');
 });
 
 it('kode masuk kedaluwarsa ditolak dan permintaan kode dibatasi', function () {
     ($this->ticket)();
     $otp = app(OtpService::class);
-    $otp->request('081234567890');
+    $otp->request('rina@email.com');
     $code = FakeOtpSender::lastCode();
     DB::table('customer_otps')->update(['expires_at' => now()->subMinute()]);
-    expect(fn () => $otp->verify('081234567890', $code))->toThrow(DomainException::class, 'kedaluwarsa');
+    expect(fn () => $otp->verify('rina@email.com', $code))->toThrow(DomainException::class, 'kedaluwarsa');
 
-    $otp->request('081234567890');
-    $otp->request('081234567890');
-    expect(fn () => $otp->request('081234567890'))->toThrow(DomainException::class, 'Terlalu sering');
+    $otp->request('rina@email.com');
+    $otp->request('rina@email.com');
+    expect(fn () => $otp->request('rina@email.com'))->toThrow(DomainException::class, 'Terlalu sering');
 });
 
 it('pengirim log ditolak di produksi supaya kode tidak hilang diam-diam', function () {
     ($this->ticket)();
     config(['kasir.otp_driver' => 'log']);
     app()->detectEnvironment(fn () => 'production');
-    expect(fn () => app(OtpService::class)->request('081234567890'))->toThrow(DomainException::class, 'belum aktif');
+    expect(fn () => app(OtpService::class)->request('rina@email.com'))->toThrow(DomainException::class, 'belum aktif');
 });
 
 it('portal: masuk dengan kode, lihat servis sendiri saja, keluar, dan tidak bisa membuka panel staf', function () {
-    ($this->ticket)('081234567890', 'Rina');
-    ($this->ticket)('081311112222', 'Budi');
+    ($this->ticket)('081234567890', 'Rina', 'rina@email.com');
+    ($this->ticket)('081311112222', 'Budi', 'budi@email.com');
 
     $this->get('/pelanggan')->assertRedirect('/pelanggan/masuk');
-    $this->post('/pelanggan/masuk', ['phone' => '081234567890'])->assertRedirect('/pelanggan/verifikasi');
-    $this->post('/pelanggan/verifikasi', ['phone' => '081234567890', 'code' => '000000'])->assertSessionHasErrors('code');
-    $this->post('/pelanggan/verifikasi', ['phone' => '081234567890', 'code' => FakeOtpSender::lastCode()])->assertRedirect('/pelanggan');
+    $this->post('/pelanggan/masuk', ['email' => 'rina@email.com'])->assertRedirect('/pelanggan/verifikasi');
+    $this->post('/pelanggan/masuk', ['email' => 'bukan-email'])->assertSessionHasErrors('email');
+    $this->post('/pelanggan/verifikasi', ['email' => 'rina@email.com', 'code' => '000000'])->assertSessionHasErrors('code');
+    $this->post('/pelanggan/verifikasi', ['email' => 'rina@email.com', 'code' => FakeOtpSender::lastCode()])->assertRedirect('/pelanggan');
 
     $this->get('/pelanggan')->assertOk()->assertSee('Halo, Rina')->assertSee('SRV-PUSAT-20261117-001')->assertDontSee('SRV-PUSAT-20261117-002')->assertDontSee('Budi');
     $this->get('/admin')->assertRedirect(); // bukan staf: diarahkan ke login staf
@@ -132,7 +135,7 @@ it('tautan lacak menampilkan status tanpa nominal atau nomor HP, dan token ngawu
     $this->svc->updateProgress($t, $this->staff, 'dikerjakan', 'Mulai bongkar');
 
     $this->get('/lacak/'.$t->public_token)->assertOk()->assertSee('Sedang dikerjakan')->assertSee('Mulai bongkar')->assertSee('iPhone 12')
-        ->assertDontSee('081234567890')->assertDontSee('200.000')->assertDontSee('Rina');
+        ->assertDontSee('081234567890')->assertDontSee('rina@email.com')->assertDontSee('200.000')->assertDontSee('Rina');
     $this->get('/lacak/tokenngawur')->assertNotFound();
 });
 
@@ -184,8 +187,10 @@ it('kasir: struk dengan nomor HP tertaut ke pelanggan dan tampil di portal', fun
     $tx->purchase($this->branch->id, '2026-11-01', 'CS1', 10, 10_000, 'kas');
     $pid = \App\Models\Product::where('sku', 'CS1')->value('id');
     $sale = app(\App\Domain\Pos\PosService::class)->checkout($this->staff, $this->branch->id, '2026-11-05', [['product_id' => $pid, 'qty' => 2]], 'kas', '0821-1111-2222');
+    $byEmail = app(\App\Domain\Pos\PosService::class)->checkout($this->staff, $this->branch->id, '2026-11-05', [['product_id' => $pid, 'qty' => 1]], 'kas', 'Siti@Email.com');
 
-    expect($sale->customer_id)->not->toBeNull()->and(Customer::find($sale->customer_id)->phone)->toBe('082111112222');
+    expect($sale->customer_id)->not->toBeNull()->and(Customer::find($sale->customer_id)->phone)->toBe('082111112222')
+        ->and(Customer::find($byEmail->customer_id)->email)->toBe('siti@email.com');
     $this->actingAs(Customer::find($sale->customer_id), 'customer')->get('/pelanggan')->assertOk()->assertSee($sale->receipt_no);
     $none = app(\App\Domain\Pos\PosService::class)->checkout($this->staff, $this->branch->id, '2026-11-05', [['product_id' => $pid, 'qty' => 1]], 'kas');
     expect($none->customer_id)->toBeNull();

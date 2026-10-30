@@ -44,9 +44,10 @@ ProductionSeeder membuat bagan akun, peran (owner, approver, finance_admin, hr, 
 5. Setor modal awal lewat jurnal pembukaan.
 6. Ganti password pemilik.
 
-## Portal pelanggan (masuk dengan HP + kode)
-- Pelanggan masuk di `/pelanggan/masuk` dengan nomor HP + kode 6 angka. Kode dikirim lewat `OtpSender` (lihat `AppServiceProvider`).
-- Bawaan `KASIR_OTP_DRIVER=log` hanya menulis kode ke log dan **ditolak di produksi**, jadi portal otomatis menolak masuk sampai pengirim WhatsApp/SMS sungguhan didaftarkan.
+## Portal pelanggan (masuk dengan email + kode)
+- Pelanggan masuk di `/pelanggan/masuk` dengan email + kode 6 angka yang dikirim ke email itu.
+- Pakai Resend: `KASIR_OTP_DRIVER=mail`, `MAIL_MAILER=resend`, `RESEND_API_KEY=...`, `MAIL_FROM_ADDRESS=` alamat dari domain yang sudah diverifikasi di Resend.
+- Bawaan `KASIR_OTP_DRIVER=log` hanya menulis kode ke log dan **ditolak di produksi**, jadi portal menolak masuk sampai driver `mail` diisi.
 - Tautan lacak servis (`/lacak/{token}`) tidak butuh masuk dan sudah aktif; hanya menampilkan status.
 
 ## Pemeriksaan sebelum klien memakai

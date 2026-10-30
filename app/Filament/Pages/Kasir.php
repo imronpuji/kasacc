@@ -44,7 +44,7 @@ class Kasir extends Page
 
     public ?string $cashReceived = null;
 
-    public ?string $customerPhone = null;
+    public ?string $customerContact = null;
 
     public static function canAccess(): bool
     {
@@ -194,7 +194,7 @@ class Kasir extends Page
                 // Harga tidak dikirim dari layar: PosService memakai harga jual produk saat ini, jadi data layar yang dipalsukan tidak berpengaruh.
                 array_values(array_map(fn ($i) => ['product_id' => (int) $i['product_id'], 'qty' => (int) $i['qty']], $this->cart)),
                 $this->method,
-                $this->customerPhone,
+                $this->customerContact,
             );
         } catch (DomainException|\InvalidArgumentException $e) {
             Notification::make()->title('Pembayaran belum berhasil')->body($e->getMessage())->danger()->send();
@@ -213,7 +213,7 @@ class Kasir extends Page
 
         $this->cart = [];
         $this->cashReceived = null;
-        $this->customerPhone = null;
+        $this->customerContact = null;
         $this->lastReceipt = $sale->receipt_no;
         Notification::make()->title('Pembayaran berhasil')->body('Nomor struk: '.$sale->receipt_no)->success()
             ->actions([Action::make('cetak')->label('Cetak struk')->url(route('struk', $sale->receipt_no), shouldOpenInNewTab: true)->button()])

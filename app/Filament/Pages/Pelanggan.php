@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\Customer;
+use App\Support\EmailAddress;
 use App\Support\PhoneNumber;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -35,7 +36,7 @@ class Pelanggan extends Page implements HasTable
 
     public function getSubheading(): ?string
     {
-        return 'Pelanggan tercatat otomatis dari nomor HP di servis dan kasir. Dengan nomor HP, pelanggan bisa masuk ke halaman pelanggan untuk melihat servisnya.';
+        return 'Pelanggan tercatat otomatis dari email atau nomor HP di servis dan kasir. Dengan email, pelanggan bisa masuk ke halaman pelanggan (kode dikirim ke email) untuk melihat servisnya.';
     }
 
     public static function canAccess(): bool
@@ -59,6 +60,21 @@ class Pelanggan extends Page implements HasTable
         };
     }
 
+    private static function emailRule(?int $ignoreId = null): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) use ($ignoreId) {
+            if (trim((string) $value) === '') {
+                return;
+            }
+            $email = EmailAddress::normalize($value);
+            if (! $email) {
+                $fail('Email tidak valid. Tulis seperti nama@contoh.com.');
+            } elseif (Customer::where('email', $email)->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))->exists()) {
+                $fail('Email ini sudah dipakai pelanggan lain.');
+            }
+        };
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -68,6 +84,7 @@ class Pelanggan extends Page implements HasTable
             ->columns([
                 TextColumn::make('name')->label('Nama')->searchable(),
                 TextColumn::make('phone')->label('Nomor HP')->searchable()->placeholder('-'),
+                TextColumn::make('email')->label('Email')->searchable()->placeholder('-'),
                 TextColumn::make('tickets_count')->label('Servis')->alignEnd(),
                 TextColumn::make('sales_count')->label('Belanja')->alignEnd(),
                 TextColumn::make('complaints_count')->label('Komplain')->alignEnd(),
@@ -77,24 +94,26 @@ class Pelanggan extends Page implements HasTable
                 Action::make('tambah')->label('Tambah pelanggan')->modalSubmitActionLabel('Simpan')
                     ->schema([
                         TextInput::make('name')->label('Nama')->required()->maxLength(100),
-                        TextInput::make('phone')->label('Nomor HP')->tel()->required()->rules([self::phoneRule()])->placeholder('081234567890'),
+                        TextInput::make('email')->label('Email')->required()->rules([self::emailRule()])->placeholder('budi@email.com')->helperText('Email dipakai pelanggan untuk masuk ke halaman pelanggan.'),
+                        TextInput::make('phone')->label('Nomor HP (boleh kosong)')->tel()->rules([self::phoneRule()])->placeholder('081234567890'),
                         Textarea::make('note')->label('Catatan (boleh kosong)')->rows(2)->maxLength(500),
                     ])
                     ->action(function (array $data) {
-                        Customer::create(['name' => trim($data['name']), 'phone' => PhoneNumber::normalize($data['phone']), 'note' => $data['note'] ?? null]);
+                        Customer::create(['name' => trim($data['name']), 'phone' => PhoneNumber::normalize($data['phone'] ?? null), 'email' => EmailAddress::normalize($data['email']), 'note' => $data['note'] ?? null]);
                         Notification::make()->title('Pelanggan disimpan')->success()->send();
                     }),
             ])
             ->recordActions([
                 Action::make('ubah')->label('Ubah')->modalSubmitActionLabel('Simpan perubahan')
-                    ->fillForm(fn (Customer $r) => $r->only(['name', 'phone', 'note']))
+                    ->fillForm(fn (Customer $r) => $r->only(['name', 'phone', 'email', 'note']))
                     ->schema(fn (Customer $r) => [
                         TextInput::make('name')->label('Nama')->required()->maxLength(100),
-                        TextInput::make('phone')->label('Nomor HP')->tel()->rules([self::phoneRule($r->id)])->helperText('Nomor ini dipakai pelanggan untuk masuk. Mengubahnya berarti pelanggan masuk dengan nomor baru.'),
+                        TextInput::make('email')->label('Email')->rules([self::emailRule($r->id)])->helperText('Email ini dipakai pelanggan untuk masuk. Mengubahnya berarti pelanggan masuk dengan email baru.'),
+                        TextInput::make('phone')->label('Nomor HP')->tel()->rules([self::phoneRule($r->id)]),
                         Textarea::make('note')->label('Catatan (boleh kosong)')->rows(2)->maxLength(500),
                     ])
                     ->action(function (Customer $r, array $data) {
-                        $r->update(['name' => trim($data['name']), 'phone' => PhoneNumber::normalize($data['phone'] ?? null), 'note' => $data['note'] ?? null]);
+                        $r->update(['name' => trim($data['name']), 'phone' => PhoneNumber::normalize($data['phone'] ?? null), 'email' => EmailAddress::normalize($data['email'] ?? null), 'note' => $data['note'] ?? null]);
                         Notification::make()->title('Perubahan disimpan')->success()->send();
                     }),
             ]);

@@ -108,7 +108,8 @@ class Servis extends Page implements HasTable
                         Select::make('branch_id')->label('Cabang')->required()->options($branchOptions)
                             ->default(fn () => $branchOptions()->keys()->first())->visible(fn () => $branchOptions()->count() > 1),
                         TextInput::make('customer_name')->label('Nama pelanggan')->placeholder('Contoh: Budi Santoso')->required(),
-                        TextInput::make('customer_phone')->label('Nomor WhatsApp / HP')->tel()->placeholder('Contoh: 081234567890')->helperText('Dipakai untuk menghubungi pelanggan dan supaya pelanggan bisa masuk melihat servisnya. Boleh kosong.'),
+                        TextInput::make('customer_phone')->label('Nomor WhatsApp / HP')->tel()->placeholder('Contoh: 081234567890')->helperText('Dipakai untuk menghubungi pelanggan kalau HP sudah selesai.'),
+                        TextInput::make('customer_email')->label('Email pelanggan')->email()->placeholder('Contoh: budi@email.com')->helperText('Isi supaya pelanggan bisa masuk melihat servisnya (kode masuk dikirim ke email). Boleh kosong.'),
                         TextInput::make('device')->label('Tipe HP')->placeholder('Contoh: iPhone 11 64GB hitam')->helperText('Tulis tipe dan warna supaya tidak tertukar dengan HP lain.')->required(),
                         Textarea::make('complaint')->label('Kerusakan / keluhan')->placeholder('Contoh: layar pecah, touchscreen tidak jalan')->helperText('Ceritakan apa yang rusak menurut pelanggan.')->required()->rows(3),
                         Select::make('technician_id')->label('Teknisi yang mengerjakan')->placeholder('Pilih teknisi')->options(fn () => User::role('technician')->orderBy('name')->pluck('name', 'id'))->helperText('Boleh dikosongkan dan diisi nanti.'),

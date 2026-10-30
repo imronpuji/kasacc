@@ -8,7 +8,7 @@
 @endphp
 <div class="box">
   <h1>Halo, {{ $customer->name }}</h1>
-  <p>{{ $customer->phone }}</p>
+  <p>{{ $customer->email }}</p>
   <form method="post" action="{{ route('pelanggan.keluar') }}">@csrf<button class="link" type="submit">Keluar</button></form>
 </div>
 <div class="box">

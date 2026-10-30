@@ -28,7 +28,7 @@ class PosService
      * Checkout kasir. $items: [['product_id' => 1, 'qty' => 2, 'price' => 120000 (opsional, default harga jual)]].
      * Pendapatan, HPP, stok, dan struk disimpan dalam satu transaksi database: gagal satu, batal semua.
      */
-    public function checkout(User $cashier, int $branchId, string $date, array $items, string $method, ?string $customerPhone = null): PosSale
+    public function checkout(User $cashier, int $branchId, string $date, array $items, string $method, ?string $customerContact = null): PosSale
     {
         if (! $cashier->can('post-sales')) {
             throw new DomainException('Anda tidak punya izin untuk berjualan di Kasir. Hubungi pemilik toko.');
@@ -61,7 +61,7 @@ class PosService
         }
 
         $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
-        $customer = $this->customers->resolve(null, $customerPhone);
+        $customer = $this->customers->resolveContact($customerContact);
 
         return DB::transaction(function () use ($cashier, $branchId, $date, $lines, $method, $mdrBps, $customer) {
             $receiptNo = $this->nextReceiptNo($branchId, $date);

@@ -2,8 +2,8 @@
 
 namespace App\Domain\Customer;
 
-/** Mengirim pesan singkat ke nomor HP pelanggan (WhatsApp/SMS). Pengirim sungguhan didaftarkan lewat config kasir.otp_driver. */
+/** Mengirim kode masuk ke pelanggan (email). Pengirim dipilih lewat config kasir.otp_driver. */
 interface OtpSender
 {
-    public function send(string $phone, string $message): void;
+    public function send(string $to, string $subject, string $message): void;
 }

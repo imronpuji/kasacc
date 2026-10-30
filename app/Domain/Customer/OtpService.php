@@ -3,11 +3,11 @@
 namespace App\Domain\Customer;
 
 use App\Models\Customer;
-use App\Support\PhoneNumber;
+use App\Support\EmailAddress;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
-/** Kode masuk sekali pakai (6 angka) untuk portal pelanggan. Hanya pelanggan yang sudah terdaftar yang bisa masuk. */
+/** Kode masuk sekali pakai (6 angka) untuk portal pelanggan. Dikirim ke email; hanya pelanggan yang sudah terdaftar yang bisa masuk. */
 class OtpService
 {
     public const TTL_MINUTES = 5;
@@ -21,19 +21,19 @@ class OtpService
     }
 
     /**
-     * Kirim kode ke nomor. Nomor yang belum terdaftar diperlakukan sama (tanpa pesan beda) supaya nomor orang lain tidak bisa ditebak.
+     * Kirim kode ke email. Email yang belum terdaftar diperlakukan sama (tanpa pesan beda) supaya nomor orang lain tidak bisa ditebak.
      */
-    public function request(string $rawPhone): void
+    public function request(string $rawEmail): void
     {
-        $phone = PhoneNumber::normalize($rawPhone);
-        if (! $phone) {
-            throw new DomainException('Nomor HP tidak valid. Tulis seperti 081234567890.');
+        $email = EmailAddress::normalize($rawEmail);
+        if (! $email) {
+            throw new DomainException('Email tidak valid. Tulis seperti nama@contoh.com.');
         }
         if (config('kasir.otp_driver') === 'log' && app()->isProduction()) {
             throw new DomainException('Masuk pelanggan belum aktif. Hubungi toko untuk menanyakan status servis.');
         }
 
-        $customer = Customer::where('phone', $phone)->first();
+        $customer = Customer::where('email', $email)->first();
         if (! $customer) {
             return;
         }
@@ -51,15 +51,15 @@ class OtpService
             ]);
         });
 
-        $this->sender->send($phone, "Kode masuk Anda: {$code}. Berlaku ".self::TTL_MINUTES.' menit. Jangan bagikan kode ini kepada siapa pun.');
+        $this->sender->send($email, 'Kode masuk Anda', "Kode masuk Anda: {$code}\n\nBerlaku ".self::TTL_MINUTES." menit. Jangan bagikan kode ini kepada siapa pun.\nAbaikan email ini kalau Anda tidak meminta kode.");
     }
 
     /** Cek kode; berhasil mengembalikan pelanggan dan kode langsung hangus. */
-    public function verify(string $rawPhone, string $code): Customer
+    public function verify(string $rawEmail, string $code): Customer
     {
         $fail = new DomainException('Kode salah atau sudah kedaluwarsa. Minta kode baru.');
-        $phone = PhoneNumber::normalize($rawPhone);
-        $customer = $phone ? Customer::where('phone', $phone)->first() : null;
+        $email = EmailAddress::normalize($rawEmail);
+        $customer = $email ? Customer::where('email', $email)->first() : null;
         if (! $customer) {
             throw $fail;
         }

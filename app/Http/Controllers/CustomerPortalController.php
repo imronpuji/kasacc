@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-/** Halaman untuk pelanggan toko: tautan lacak (tanpa masuk) dan portal (masuk dengan nomor HP + kode sekali pakai). */
+/** Halaman untuk pelanggan toko: tautan lacak (tanpa masuk) dan portal (masuk dengan email + kode sekali pakai). */
 class CustomerPortalController extends Controller
 {
     /** Status satu servis lewat tautan di nota. Hanya status dan riwayat proses; tanpa nominal, nomor HP, atau data lain. */
@@ -33,34 +33,34 @@ class CustomerPortalController extends Controller
 
     public function sendCode(Request $request, OtpService $otp)
     {
-        $data = $request->validate(['phone' => ['required', 'string', 'max:30']], ['phone.required' => 'Isi nomor HP Anda.']);
+        $data = $request->validate(['email' => ['required', 'string', 'max:120']], ['email.required' => 'Isi email Anda.']);
         try {
-            $otp->request($data['phone']);
+            $otp->request($data['email']);
         } catch (DomainException $e) {
-            return back()->withInput()->withErrors(['phone' => $e->getMessage()]);
+            return back()->withInput()->withErrors(['email' => $e->getMessage()]);
         }
 
         // Pesan sama untuk nomor terdaftar maupun tidak, supaya nomor orang lain tidak bisa ditebak.
-        return redirect()->route('pelanggan.verifikasi')->with('phone', $data['phone']);
+        return redirect()->route('pelanggan.verifikasi')->with('email', $data['email']);
     }
 
     public function verifyForm(Request $request)
     {
-        $phone = $request->session()->get('phone', $request->old('phone'));
-        if (! $phone) {
+        $email = $request->session()->get('email', $request->old('email'));
+        if (! $email) {
             return redirect()->route('pelanggan.masuk');
         }
 
-        return view('pelanggan.kode', ['phone' => $phone]);
+        return view('pelanggan.kode', ['email' => $email]);
     }
 
     public function verify(Request $request, OtpService $otp)
     {
-        $data = $request->validate(['phone' => ['required', 'string', 'max:30'], 'code' => ['required', 'string', 'max:10']], ['code.required' => 'Isi kode yang dikirim ke HP Anda.']);
+        $data = $request->validate(['email' => ['required', 'string', 'max:120'], 'code' => ['required', 'string', 'max:10']], ['code.required' => 'Isi kode yang dikirim ke HP Anda.']);
         try {
-            $customer = $otp->verify($data['phone'], $data['code']);
+            $customer = $otp->verify($data['email'], $data['code']);
         } catch (DomainException $e) {
-            return back()->withInput(['phone' => $data['phone']])->withErrors(['code' => $e->getMessage()]);
+            return back()->withInput(['email' => $data['email']])->withErrors(['code' => $e->getMessage()]);
         }
 
         Auth::guard('customer')->login($customer);

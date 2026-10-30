@@ -15,7 +15,7 @@ class PaymentApprovalService
     {
     }
 
-    public function request(User $maker, int $branchId, int $amount, string $method, string $description = 'Pembayaran utang usaha'): PaymentRequest
+    public function request(User $maker, int $branchId, int $amount, string $method, string $description = 'Pembayaran utang usaha', ?int $supplierId = null): PaymentRequest
     {
         if (! $maker->canAccessBranch($branchId)) {
             throw new DomainException('Anda tidak punya akses ke cabang ini. Pilih cabang lain atau hubungi pemilik usaha.');
@@ -27,15 +27,19 @@ class PaymentApprovalService
         if ($amount <= 0) {
             throw new DomainException('Jumlah pembayaran harus lebih dari nol. Isi jumlah yang mau dibayar.');
         }
-        $pending = (int) PaymentRequest::where('branch_id', $branchId)->where('status', 'pending')->sum('amount');
-        $owed = app(OpsReportService::class)->payables($branchId, now()->addYears(10)->toDateString());
+        if ($supplierId && ! \App\Models\Supplier::whereKey($supplierId)->exists()) {
+            throw new DomainException('Pemasok tidak ditemukan. Pilih pemasok dari daftar.');
+        }
+        $pending = (int) PaymentRequest::where('branch_id', $branchId)->where('status', 'pending')
+            ->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->sum('amount');
+        $owed = app(OpsReportService::class)->payables($branchId, now()->addYears(10)->toDateString(), $supplierId);
         if ($amount > $owed - $pending) {
-            throw new DomainException('Jumlah melebihi sisa utang ke pemasok (sisa Rp'.number_format(max($owed - $pending, 0), 0, ',', '.').', sudah termasuk pengajuan lain yang masih menunggu). Kecilkan jumlahnya.');
+            throw new DomainException('Jumlah melebihi sisa utang ke pemasok'.($supplierId ? ' ini' : '').' (sisa Rp'.number_format(max($owed - $pending, 0), 0, ',', '.').', sudah termasuk pengajuan lain yang masih menunggu). Kecilkan jumlahnya.');
         }
 
         return PaymentRequest::create([
             'branch_id' => $branchId, 'amount' => $amount, 'method' => $method,
-            'description' => $description, 'status' => 'pending', 'requested_by' => $maker->id,
+            'description' => $description, 'status' => 'pending', 'requested_by' => $maker->id, 'supplier_id' => $supplierId,
         ]);
     }
 
@@ -57,10 +61,10 @@ class PaymentApprovalService
             if ($request->status !== 'pending') {
                 throw new DomainException('Pengajuan ini sudah diproses sebelumnya, tidak perlu diulang.');
             }
-            if ((int) $request->amount > app(OpsReportService::class)->payables($request->branch_id, now()->addYears(10)->toDateString())) {
+            if ((int) $request->amount > app(OpsReportService::class)->payables($request->branch_id, now()->addYears(10)->toDateString(), $request->supplier_id)) {
                 throw new DomainException('Sisa utang sudah berkurang, jadi jumlah pengajuan terlalu besar. Tolak lalu ajukan lagi dengan jumlah baru.');
             }
-            $journal = $this->transactions->payPayable($request->branch_id, $date, (int) $request->amount, $request->method);
+            $journal = $this->transactions->payPayable($request->branch_id, $date, (int) $request->amount, $request->method, $request->supplier_id);
             $request->update(['status' => 'approved', 'approved_by' => $approver->id, 'journal_id' => $journal->id]);
 
             return $request;

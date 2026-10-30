@@ -119,6 +119,7 @@ class Laporan extends Page implements HasSchemas
                 'cashflow' => $ops->cashFlow($branch, $from, $to),
                 'payables' => $ops->payables($branch, $to),
                 'aging' => $ops->payablesAging($branch, $to),
+                'by_supplier' => $ops->payablesBySupplier($branch, $to),
                 'ledger' => $ops->generalLedger($this->accountCode, $branch, $from, $to),
                 'stockCard' => $this->productId ? $ops->stockCard($stockBranch, $this->productId) : [],
                 'stockBranchName' => Branch::find($stockBranch)?->name,

@@ -18,7 +18,7 @@ class CreatePaymentRequest extends CreateRecord
     {
         try {
             return app(PaymentApprovalService::class)->request(
-                auth()->user(), (int) $data['branch_id'], (int) $data['amount'], $data['method'], $data['description'] ?? 'Pembayaran utang usaha',
+                auth()->user(), (int) $data['branch_id'], (int) $data['amount'], $data['method'], $data['description'] ?? 'Pembayaran utang usaha', isset($data['supplier_id']) ? (int) $data['supplier_id'] : null,
             );
         } catch (DomainException $e) {
             Notification::make()->title('Pengajuan belum terkirim')->body($e->getMessage())->danger()->send();

@@ -177,6 +177,15 @@
                     <div class="iz-bar"><div style="background:{{ $bucketColors[$i] ?? '#0B63F6' }};width:{{ round($v / $bucketMax * 100) }}%"></div></div>
                 </div>
             @endforeach
+            @if ($ops['by_supplier'])
+                <h2 style="margin:18px 0 6px;font-size:15px">Utang per pemasok</h2>
+                <table class="lp-t lp-grid">
+                    <tr class="h"><td>Pemasok</td><td class="n">Belum dibayar</td></tr>
+                    @foreach ($ops['by_supplier'] as $r)
+                        <tr><td>{{ $r['name'] }}</td><td class="n">{{ $rp($r['owed']) }}</td></tr>
+                    @endforeach
+                </table>
+            @endif
             @if ($ops['aging']['rows'])
                 <table class="lp-t lp-grid" style="margin-top:8px">
                     <tr class="h"><td>Tanggal beli</td><td>Keterangan</td><td>Sudah berapa lama</td><td class="n">Belum dibayar</td></tr>

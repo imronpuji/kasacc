@@ -13,6 +13,11 @@ class PaymentRequest extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    public function supplier(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
     public function requester(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');

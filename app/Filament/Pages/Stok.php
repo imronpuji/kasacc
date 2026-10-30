@@ -100,23 +100,29 @@ class Stok extends Page implements HasTable
                 Action::make('pembelian')->label('Catat pembelian barang')->modalHeading('Catat pembelian barang')->modalSubmitActionLabel('Simpan pembelian')->schema([
                     $branchSelect('branch_id', 'Cabang yang menerima barang'),
                     $skuSelect(),
+                    Select::make('supplier_id')->label('Pemasok')->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))->searchable()->placeholder('Pilih pemasok')->live()
+                        ->required(fn ($get) => in_array($get('method'), ['kredit', 'utang'], true))
+                        ->helperText('Wajib kalau belum dibayar atau memotong utang, supaya utang tercatat atas nama pemasok. Tambah pemasok baru di menu Pemasok.'),
                     $qtyInput('Jumlah dibeli', 'Banyaknya barang yang dibeli.'),
                     TextInput::make('unit_cost')->label('Harga beli per buah (Rp)')->prefix('Rp')->inputMode('numeric')->numeric()->minValue(1)->placeholder('Contoh: 250000')->helperText('Harga satu buah dari pemasok, bukan total.')->required(),
                     Select::make('method')->label('Dibayar dengan')->options(fn () => \App\Domain\Accounting\MoneyAccounts::options(['kredit' => 'Belum dibayar (utang ke pemasok)']))->default('kas')->required()
                         ->helperText('Tunai diambil dari laci kas, transfer dari rekening toko. Pilih "Belum dibayar" kalau akan dilunasi nanti.'),
                 ])->action(fn (array $data) => self::run(function ($u) use ($data) {
                     self::guard($u, (int) $data['branch_id']);
-                    app(Transactions::class)->purchase((int) $data['branch_id'], now()->toDateString(), $data['sku'], (int) $data['qty'], (int) $data['unit_cost'], $data['method']);
+                    app(Transactions::class)->purchase((int) $data['branch_id'], now()->toDateString(), $data['sku'], (int) $data['qty'], (int) $data['unit_cost'], $data['method'], ($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null);
                 }, 'Pembelian dicatat', 'Stok barang sudah bertambah.')),
                 Action::make('retur')->label('Kembalikan barang ke pemasok')->modalHeading('Kembalikan barang ke pemasok')->modalSubmitActionLabel('Simpan pengembalian')->schema([
                     $branchSelect('branch_id', 'Cabang asal barang'),
                     $skuSelect(),
+                    Select::make('supplier_id')->label('Pemasok')->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))->searchable()->placeholder('Pilih pemasok')->live()
+                        ->required(fn ($get) => in_array($get('method'), ['kredit', 'utang'], true))
+                        ->helperText('Wajib kalau memotong utang, supaya utang pemasok itu yang berkurang. Tambah pemasok baru di menu Pemasok.'),
                     $qtyInput('Jumlah dikembalikan', 'Tidak boleh lebih dari stok yang ada.'),
                     Select::make('method')->label('Uang kembali lewat')->options(fn () => \App\Domain\Accounting\MoneyAccounts::options(['utang' => 'Potong utang ke pemasok']))->default('kas')->required()
                         ->helperText('Pilih "Potong utang" kalau barang tadi belum dibayar.'),
                 ])->action(fn (array $data) => self::run(function ($u) use ($data) {
                     self::guard($u, (int) $data['branch_id']);
-                    app(Transactions::class)->returnToSupplier((int) $data['branch_id'], now()->toDateString(), $data['sku'], (int) $data['qty'], $data['method']);
+                    app(Transactions::class)->returnToSupplier((int) $data['branch_id'], now()->toDateString(), $data['sku'], (int) $data['qty'], $data['method'], ($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null);
                 }, 'Pengembalian dicatat', 'Stok barang sudah berkurang.')),
                 Action::make('transfer')->label('Pindahkan stok ke cabang lain')->modalHeading('Pindahkan stok ke cabang lain')->modalSubmitActionLabel('Pindahkan stok')->schema([
                     $branchSelect('from', 'Dari cabang')->live(),

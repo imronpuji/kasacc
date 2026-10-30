@@ -38,6 +38,7 @@ class PaymentRequestsTable
                 TextColumn::make('id')->label('No.')->sortable(),
                 TextColumn::make('created_at')->label('Diajukan pada')->dateTime('d M Y H:i')->sortable(),
                 TextColumn::make('branch.name')->label('Cabang'),
+                TextColumn::make('supplier.name')->label('Pemasok')->placeholder('-'),
                 TextColumn::make('amount')->label('Jumlah (Rp)')->numeric(0, ',', '.')->alignEnd(),
                 TextColumn::make('method')->label('Dibayar dari')->badge()
                     ->formatStateUsing(fn (string $state) => PaymentRequestResource::methodLabel($state)),

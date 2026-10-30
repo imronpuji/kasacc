@@ -110,15 +110,36 @@ class OpsReportService
         return ['opening' => $opening, 'rows' => $rows, 'closing' => $balance];
     }
 
-    /** Umur utang usaha (saldo 2-1100 yang belum lunas) per cabang — total saja, karena utang dicatat tanpa faktur. */
-    public function payables(?int $branchId, string $to): int
+    /** Utang usaha (saldo 2-1100) per cabang. Dengan $supplierId, hanya utang ke pemasok itu. */
+    public function payables(?int $branchId, string $to, ?int $supplierId = null): int
     {
         $id = DB::table('accounts')->where('code', '2-1100')->value('id');
 
         return -(int) DB::table('journal_lines as l')->join('journals as j', 'j.id', '=', 'l.journal_id')
             ->where('l.account_id', $id)->where('j.entry_date', '<=', $to)
             ->when($branchId, fn ($q) => $q->where('j.branch_id', $branchId))
+            ->when($supplierId, fn ($q) => $q->where('j.supplier_id', $supplierId))
             ->selectRaw('COALESCE(SUM(l.debit) - SUM(l.credit), 0) as n')->value('n');
+    }
+
+    /**
+     * Utang per pemasok: pembelian kredit menambah, bayar dan retur mengurangi. Utang yang dicatat sebelum
+     * ada data pemasok dikumpulkan di baris "Tanpa pemasok". Hanya yang masih berutang yang ditampilkan.
+     */
+    public function payablesBySupplier(?int $branchId, string $to): array
+    {
+        $id = DB::table('accounts')->where('code', '2-1100')->value('id');
+
+        return DB::table('journal_lines as l')->join('journals as j', 'j.id', '=', 'l.journal_id')
+            ->leftJoin('suppliers as s', 's.id', '=', 'j.supplier_id')
+            ->where('l.account_id', $id)->where('j.entry_date', '<=', $to)
+            ->when($branchId, fn ($q) => $q->where('j.branch_id', $branchId))
+            ->groupBy('j.supplier_id', 's.name')
+            ->havingRaw('SUM(l.credit) - SUM(l.debit) <> 0')
+            ->orderByRaw('s.name IS NULL')->orderBy('s.name')
+            ->get(['j.supplier_id', 's.name', DB::raw('SUM(l.credit) - SUM(l.debit) as owed')])
+            ->map(fn ($r) => ['supplier_id' => $r->supplier_id ? (int) $r->supplier_id : null, 'name' => $r->name ?? 'Tanpa pemasok (data lama)', 'owed' => (int) $r->owed])
+            ->all();
     }
 
     /**

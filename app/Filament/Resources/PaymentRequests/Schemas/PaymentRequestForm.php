@@ -23,6 +23,8 @@ class PaymentRequestForm
                 ->schema([
                     Select::make('branch_id')->label('Cabang')->relationship('branch', 'name')->required()->native(false)->placeholder('Pilih cabang')->live()
                         ->helperText('Cabang yang punya utang ini.'),
+                    Select::make('supplier_id')->label('Pemasok')->options(fn () => \App\Models\Supplier::orderBy('name')->pluck('name', 'id'))->native(false)->searchable()->placeholder('Pilih pemasok')->live()
+                        ->helperText('Kosongkan hanya untuk utang lama yang belum punya data pemasok.'),
                     TextInput::make('amount')->label('Jumlah yang dibayar')->placeholder('Contoh: 500000')->prefix('Rp')->numeric()->integer()->minValue(1)->required()
                         ->helperText(function (Get $get) {
                             $base = 'Tidak boleh lebih besar dari sisa utang usaha cabang ini.';
@@ -30,8 +32,9 @@ class PaymentRequestForm
                             if (! $branch) {
                                 return $base;
                             }
-                            $owed = app(OpsReportService::class)->payables($branch, now()->addYears(10)->toDateString());
-                            $pending = (int) PaymentRequest::where('branch_id', $branch)->where('status', 'pending')->sum('amount');
+                            $sup = (int) $get('supplier_id') ?: null;
+                            $owed = app(OpsReportService::class)->payables($branch, now()->addYears(10)->toDateString(), $sup);
+                            $pending = (int) PaymentRequest::where('branch_id', $branch)->where('status', 'pending')->when($sup, fn ($q) => $q->where('supplier_id', $sup))->sum('amount');
 
                             return $base.' Sisa utang yang bisa diajukan: Rp'.number_format(max($owed - $pending, 0), 0, ',', '.').'.';
                         }),

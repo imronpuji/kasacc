@@ -50,11 +50,11 @@ class Transactions
         return $product->id;
     }
 
-    private function post(int $branchId, string $date, array $lines, string $source, string $description, ?string $reference = null): Journal
+    private function post(int $branchId, string $date, array $lines, string $source, string $description, ?string $reference = null, ?int $supplierId = null): Journal
     {
         return $this->ledger->post([
             'branch_id' => $branchId, 'date' => $date, 'lines' => $lines,
-            'source' => $source, 'description' => $description, 'reference' => $reference,
+            'source' => $source, 'description' => $description, 'reference' => $reference, 'supplier_id' => $supplierId,
         ]);
     }
 
@@ -81,9 +81,9 @@ class Transactions
     }
 
     /** $method: kas, bank, atau kredit (menjadi utang usaha). */
-    public function purchase(int $branchId, string $date, string $sku, int $qty, int $unitCost, string $method): Journal
+    public function purchase(int $branchId, string $date, string $sku, int $qty, int $unitCost, string $method, ?int $supplierId = null): Journal
     {
-        return DB::transaction(function () use ($branchId, $date, $sku, $qty, $unitCost, $method) {
+        return DB::transaction(function () use ($branchId, $date, $sku, $qty, $unitCost, $method, $supplierId) {
             $total = $qty * $unitCost;
             $this->assertFunds($branchId, $date, $method, $total);
             $this->inventory->receive($branchId, $this->productId($sku), $qty, $total, $date, 'pembelian');
@@ -91,31 +91,35 @@ class Transactions
             return $this->post($branchId, $date, [
                 ['account' => self::PERSEDIAAN, 'debit' => $total],
                 ['account' => in_array($method, ['kredit', 'utang'], true) ? self::UTANG : $this->moneyAccount($method), 'credit' => $total],
-            ], 'purchase', "Pembelian {$sku}");
+            ], 'purchase', "Pembelian {$sku}", null, $supplierId);
         });
     }
 
     /** Retur ke supplier pada biaya rata-rata saat ini; pengembalian uang via $refundMethod atau mengurangi utang. */
-    public function returnToSupplier(int $branchId, string $date, string $sku, int $qty, string $refundMethod): Journal
+    public function returnToSupplier(int $branchId, string $date, string $sku, int $qty, string $refundMethod, ?int $supplierId = null): Journal
     {
-        return DB::transaction(function () use ($branchId, $date, $sku, $qty, $refundMethod) {
+        return DB::transaction(function () use ($branchId, $date, $sku, $qty, $refundMethod, $supplierId) {
             $cost = $this->inventory->issue($branchId, $this->productId($sku), $qty, $date, 'retur');
+            if ($supplierId && in_array($refundMethod, ['utang', 'kredit'], true)
+                && $cost > app(\App\Domain\Accounting\OpsReportService::class)->payables($branchId, $date, $supplierId)) {
+                throw new \DomainException('Nilai barang yang dikembalikan lebih besar dari utang ke pemasok ini. Pilih "uang kembali" lewat kas atau bank, atau pilih pemasok yang benar.');
+            }
 
             return $this->post($branchId, $date, [
                 ['account' => in_array($refundMethod, ['utang', 'kredit'], true) ? self::UTANG : $this->moneyAccount($refundMethod), 'debit' => $cost],
                 ['account' => self::PERSEDIAAN, 'credit' => $cost],
-            ], 'purchase', "Retur {$sku}");
+            ], 'purchase', "Retur {$sku}", null, $supplierId);
         });
     }
 
-    public function payPayable(int $branchId, string $date, int $amount, string $method): Journal
+    public function payPayable(int $branchId, string $date, int $amount, string $method, ?int $supplierId = null): Journal
     {
         $this->assertFunds($branchId, $date, $method, $amount);
 
         return $this->post($branchId, $date, [
             ['account' => self::UTANG, 'debit' => $amount],
             ['account' => $this->moneyAccount($method), 'credit' => $amount],
-        ], 'purchase', 'Pembayaran utang usaha');
+        ], 'purchase', 'Pembayaran utang usaha', null, $supplierId);
     }
 
     public function receiveDeposit(int $branchId, string $date, int $amount, string $method, ?string $ticket = null): Journal

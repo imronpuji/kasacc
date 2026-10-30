@@ -18,7 +18,7 @@ class LedgerService
      * Posting jurnal double-entry.
      *
      * $entry: branch_id (wajib), date (Y-m-d), lines: [['account' => '1-1100', 'debit' => 100] | ['account' => ..., 'credit' => 100]],
-     * opsional: reference, source, description, created_by, reversal_of.
+     * opsional: reference, source, description, created_by, reversal_of, supplier_id.
      * Semua nominal bilangan bulat rupiah. Gagal = tidak ada yang tersimpan.
      */
     public function post(array $entry): Journal
@@ -62,6 +62,7 @@ class LedgerService
                 'description' => $entry['description'] ?? null,
                 'created_by' => $entry['created_by'] ?? null,
                 'reversal_of' => $entry['reversal_of'] ?? null,
+                'supplier_id' => $entry['supplier_id'] ?? null,
             ]);
 
             // Pemeriksaan keseimbangan di database ditunda sampai semua baris masuk,
@@ -121,6 +122,7 @@ class LedgerService
                 'description' => 'Pembalik jurnal #'.$journal->id,
                 'created_by' => $userId,
                 'reversal_of' => $journal->id,
+                'supplier_id' => $journal->supplier_id,
             ]);
         });
     }

@@ -54,6 +54,9 @@ class OpsReportService
 
         return [
             'complaints' => $complaints, 'complaint_count' => array_sum($complaints),
+            // Selisih yang sudah dibukukan pada periode ini (negatif = rugi): hasil opname dan tutup kas.
+            'stock_diff' => (int) DB::table('stock_counts')->where('status', 'posted')->whereBetween(DB::raw('DATE(posted_at)'), [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('diff_value'),
+            'cash_diff' => (int) DB::table('cash_closings')->where('status', 'closed')->whereNotNull('journal_id')->whereBetween('closing_date', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('diff'),
             // Klaim ke pemasok yang masih menunggu (posisi saat ini, bukan menurut periode): barang rusak yang belum selesai diurus.
             'claims_open_count' => (int) DB::table('supplier_claims')->where('status', 'open')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
             'claims_open_value' => (int) DB::table('supplier_claims')->where('status', 'open')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('cost'),

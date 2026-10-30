@@ -29,6 +29,8 @@ class Transactions
     public const BEBAN_POIN = '6-7000';
     public const BARANG_KLAIM = '1-1550';
     public const RUGI_KLAIM = '6-7100';
+    public const SELISIH_STOK = '6-7200';
+    public const SELISIH_KAS = '6-7300';
     public const BEBAN_MDR = '8-1000';
 
     public function __construct(
@@ -233,6 +235,28 @@ class Transactions
         $lines[] = ['account' => $claim, 'credit' => $cost];
 
         return $this->post($branchId, $date, $lines, 'purchase', 'Klaim pemasok selesai: '.$outcome, $reference, $supplierId);
+    }
+
+    /** Selisih hasil opname: $value negatif = barang kurang (rugi), positif = barang lebih. Stok sudah disesuaikan oleh pemanggil. */
+    public function stockCountAdjustment(int $branchId, string $date, int $value, string $reference): Journal
+    {
+        $acc = $this->ensure(self::SELISIH_STOK);
+
+        return $this->post($branchId, $date, $value < 0
+            ? [['account' => $acc, 'debit' => -$value], ['account' => self::PERSEDIAAN, 'credit' => -$value]]
+            : [['account' => self::PERSEDIAAN, 'debit' => $value], ['account' => $acc, 'credit' => $value]],
+            'manual', 'Selisih stok opname '.$reference, $reference);
+    }
+
+    /** Selisih kas laci: $diff negatif = uang kurang (rugi), positif = uang lebih. */
+    public function cashDifference(int $branchId, string $date, int $diff, string $reference): Journal
+    {
+        $acc = $this->ensure(self::SELISIH_KAS);
+
+        return $this->post($branchId, $date, $diff < 0
+            ? [['account' => $acc, 'debit' => -$diff], ['account' => self::KAS, 'credit' => -$diff]]
+            : [['account' => self::KAS, 'debit' => $diff], ['account' => $acc, 'credit' => $diff]],
+            'manual', 'Selisih kas '.$reference, $reference);
     }
 
     public function warrantyClaim(int $branchId, string $date, string $sku, int $qty, ?string $ticket = null): Journal

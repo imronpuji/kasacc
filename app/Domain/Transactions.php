@@ -27,6 +27,8 @@ class Transactions
     public const HPP = '5-1000';
     public const BEBAN_GARANSI = '6-6000';
     public const BEBAN_POIN = '6-7000';
+    public const BARANG_KLAIM = '1-1550';
+    public const RUGI_KLAIM = '6-7100';
     public const BEBAN_MDR = '8-1000';
 
     public function __construct(
@@ -197,6 +199,40 @@ class Transactions
         }
 
         return $this->post($branchId, $date, $lines, 'service', 'Servis dibatalkan', $ticket);
+    }
+
+    /** Pindahkan nilai barang rusak dari persediaan ke "barang klaim di pemasok". Stoknya sudah dikeluarkan oleh pemanggil. */
+    public function moveToClaim(int $branchId, string $date, int $cost, string $description, ?string $reference = null, ?int $supplierId = null): Journal
+    {
+        return $this->post($branchId, $date, [
+            ['account' => $this->ensure(self::BARANG_KLAIM), 'debit' => $cost],
+            ['account' => self::PERSEDIAAN, 'credit' => $cost],
+        ], 'purchase', $description, $reference, $supplierId);
+    }
+
+    /**
+     * Klaim selesai. $outcome: replaced (barang baru masuk stok), refunded (uang kembali $refund lewat $method,
+     * selisih dengan nilai barang jadi kerugian), rejected (seluruh nilai jadi kerugian).
+     */
+    public function settleClaim(int $branchId, string $date, string $outcome, int $cost, int $refund, ?string $method, ?string $reference, ?int $supplierId): Journal
+    {
+        $claim = $this->ensure(self::BARANG_KLAIM);
+        $lines = [];
+        if ($outcome === 'replaced') {
+            $lines[] = ['account' => self::PERSEDIAAN, 'debit' => $cost];
+        } elseif ($outcome === 'refunded') {
+            if ($refund > 0) {
+                $lines[] = ['account' => in_array($method, ['utang', 'kredit'], true) ? self::UTANG : $this->moneyAccount((string) $method), 'debit' => $refund];
+            }
+            if ($cost - $refund > 0) {
+                $lines[] = ['account' => $this->ensure(self::RUGI_KLAIM), 'debit' => $cost - $refund];
+            }
+        } else {
+            $lines[] = ['account' => $this->ensure(self::RUGI_KLAIM), 'debit' => $cost];
+        }
+        $lines[] = ['account' => $claim, 'credit' => $cost];
+
+        return $this->post($branchId, $date, $lines, 'purchase', 'Klaim pemasok selesai: '.$outcome, $reference, $supplierId);
     }
 
     public function warrantyClaim(int $branchId, string $date, string $sku, int $qty, ?string $ticket = null): Journal

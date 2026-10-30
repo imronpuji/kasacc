@@ -6,6 +6,7 @@ use App\Domain\Accounting\LedgerService;
 use App\Domain\Customer\CustomerService;
 use App\Domain\Inventory\InventoryService;
 use App\Domain\Loyalty\LoyaltyService;
+use App\Domain\Purchasing\SupplierClaimService;
 use App\Domain\Transactions;
 use App\Models\Branch;
 use App\Models\PosSale;
@@ -23,6 +24,7 @@ class PosService
         private InventoryService $inventory,
         private CustomerService $customers,
         private LoyaltyService $loyalty,
+        private SupplierClaimService $claims,
     ) {
     }
 
@@ -105,8 +107,10 @@ class PosService
     /**
      * Batalkan satu struk penuh: jurnal dibalik, stok kembali dengan biaya semula, struk ditandai batal.
      * Hanya yang berwenang (pemilik atau penyetuju), harus ada alasan, dan uang pengembalian harus ada saldonya.
+     * $defective: [['product_id' => 1, 'qty' => 1]] untuk barang yang dikembalikan dalam keadaan rusak. Barang itu tidak
+     * masuk stok bagus, tapi menjadi klaim ke pemasok (lihat SupplierClaimService).
      */
-    public function void(User $user, string $receiptNo, string $date, string $reason): PosSale
+    public function void(User $user, string $receiptNo, string $date, string $reason, array $defective = []): PosSale
     {
         if (! $user->can('void-sales')) {
             throw new DomainException('Anda tidak berwenang membatalkan struk. Minta pemilik atau penyetuju yang ditunjuk.');
@@ -116,7 +120,7 @@ class PosService
             throw new DomainException('Alasan pembatalan harus diisi, misalnya "pelanggan batal" atau "salah input barang".');
         }
 
-        return DB::transaction(function () use ($user, $receiptNo, $date, $reason) {
+        return DB::transaction(function () use ($user, $receiptNo, $date, $reason, $defective) {
             $sale = PosSale::where('receipt_no', $receiptNo)->lockForUpdate()->first();
             if (! $sale) {
                 throw new DomainException('Nomor struk tidak ditemukan. Periksa nomor yang tercetak di struk.');
@@ -132,8 +136,27 @@ class PosService
             $this->transactions->assertFunds($sale->branch_id, $date, $sale->payment_method, (int) $sale->total - (int) $sale->discount - (int) $sale->mdr);
 
             $reversal = $this->ledger->reverse(\App\Models\Journal::findOrFail($sale->journal_id), $date, $user->id);
-            foreach (StockMovement::where('branch_id', $sale->branch_id)->where('reference', $sale->receipt_no)->where('direction', 'out')->where('reason', 'penjualan')->get() as $m) {
-                $this->inventory->receive($sale->branch_id, $m->product_id, $m->qty, (int) $m->total_cost, $date, 'retur penjualan', $sale->receipt_no);
+            $movements = StockMovement::where('branch_id', $sale->branch_id)->where('reference', $sale->receipt_no)->where('direction', 'out')->where('reason', 'penjualan')->get();
+            $left = [];
+            foreach ($defective as $d) {
+                $pid = (int) ($d['product_id'] ?? 0);
+                $qty = (int) ($d['qty'] ?? 0);
+                if ($qty <= 0 || $qty > (int) $movements->where('product_id', $pid)->sum('qty') - ($left[$pid] ?? 0)) {
+                    throw new DomainException('Jumlah barang rusak lebih banyak dari yang terjual di struk ini. Periksa lagi barang dan jumlahnya.');
+                }
+                $left[$pid] = ($left[$pid] ?? 0) + $qty;
+            }
+            foreach ($movements as $m) {
+                $bad = min((int) $m->qty, $left[$m->product_id] ?? 0);
+                $left[$m->product_id] = ($left[$m->product_id] ?? 0) - $bad;
+                $good = (int) $m->qty - $bad;
+                $goodCost = $bad === 0 ? (int) $m->total_cost : intdiv((int) $m->total_cost * $good, (int) $m->qty);
+                if ($good > 0) {
+                    $this->inventory->receive($sale->branch_id, $m->product_id, $good, $goodCost, $date, 'retur penjualan', $sale->receipt_no);
+                }
+                if ($bad > 0) {
+                    $this->claims->fromReturnedSale($user, $sale, (int) $m->product_id, $bad, (int) $m->total_cost - $goodCost, $date, 'Barang rusak dikembalikan pelanggan, struk '.$sale->receipt_no);
+                }
             }
 
             $sale->update(['voided_at' => now(), 'voided_by' => $user->id, 'void_reason' => mb_substr($reason, 0, 200), 'void_journal_id' => $reversal->id]);

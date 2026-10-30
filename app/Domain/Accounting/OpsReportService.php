@@ -54,6 +54,9 @@ class OpsReportService
 
         return [
             'complaints' => $complaints, 'complaint_count' => array_sum($complaints),
+            // Klaim ke pemasok yang masih menunggu (posisi saat ini, bukan menurut periode): barang rusak yang belum selesai diurus.
+            'claims_open_count' => (int) DB::table('supplier_claims')->where('status', 'open')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
+            'claims_open_value' => (int) DB::table('supplier_claims')->where('status', 'open')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('cost'),
             'voids' => $voids, 'void_count' => count($voids), 'void_total' => array_sum(array_column($voids, 'total')), 'receipts' => $receipts,
             'cancels' => $cancels, 'cancel_total' => array_sum(array_column($cancels, 'refund')),
             'warranty' => $warranty, 'warranty_total' => array_sum(array_column($warranty, 'cost')), 'services_done' => $done,

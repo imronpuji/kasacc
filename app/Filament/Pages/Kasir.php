@@ -208,16 +208,24 @@ class Kasir extends Page
         return [
             Action::make('batalStruk')->label('Batalkan struk')->color('danger')->icon(Heroicon::OutlinedArrowUturnLeft)
                 ->visible(fn () => auth()->user()?->can('void-sales') ?? false)
-                ->modalHeading('Batalkan struk')->modalDescription('Seluruh isi struk dibatalkan: uang dikembalikan ke pelanggan dan stok barang kembali. Tidak bisa dibatalkan lagi.')
+                ->modalHeading('Batalkan struk')->modalDescription('Seluruh isi struk dibatalkan: uang dikembalikan ke pelanggan dan stok barang kembali (kecuali barang rusak). Tidak bisa dibatalkan lagi.')
                 ->modalSubmitActionLabel('Ya, batalkan struk')
                 ->schema([
                     TextInput::make('receipt_no')->label('Nomor struk')->placeholder('Contoh: POS-PUSAT-20271001-0007')->required()
                         ->helperText('Nomor ada di bagian atas struk yang dicetak.'),
                     Textarea::make('reason')->label('Alasan pembatalan')->placeholder('Contoh: pelanggan batal beli, atau salah input barang')->required()->maxLength(200),
+                    \Filament\Forms\Components\Repeater::make('defective')->label('Barang yang dikembalikan dalam keadaan rusak (boleh dikosongkan)')
+                        ->helperText('Barang rusak tidak masuk stok bagus. Barangnya otomatis jadi klaim ke pemasok di menu Klaim pemasok.')
+                        ->addActionLabel('Tambah barang rusak')->defaultItems(0)
+                        ->schema([
+                            \Filament\Forms\Components\Select::make('product_id')->label('Barang')->options(fn () => \App\Models\Product::orderBy('name')->pluck('name', 'id'))->searchable()->required()->placeholder('Pilih barang'),
+                            TextInput::make('qty')->label('Jumlah rusak')->numeric()->integer()->minValue(1)->default(1)->required(),
+                        ])->columns(2),
                 ])
                 ->action(function (array $data) {
                     try {
-                        $sale = app(PosService::class)->void(auth()->user(), trim($data['receipt_no']), now()->toDateString(), $data['reason']);
+                        $sale = app(PosService::class)->void(auth()->user(), trim($data['receipt_no']), now()->toDateString(), $data['reason'],
+                            array_map(fn ($d) => ['product_id' => (int) $d['product_id'], 'qty' => (int) $d['qty']], $data['defective'] ?? []));
                     } catch (DomainException|\InvalidArgumentException $e) {
                         Notification::make()->title('Struk belum dibatalkan')->body($e->getMessage())->danger()->send();
 

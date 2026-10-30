@@ -205,6 +205,7 @@
                 <tr><td>Struk kasir dibatalkan (uang dikembalikan)</td><td class="n">{{ $pb['void_count'] }}</td><td class="n">{{ $rp($pb['void_total']) }}</td></tr>
                 <tr><td>Servis batal (DP dikembalikan)</td><td class="n">{{ count($pb['cancels']) }}</td><td class="n">{{ $rp($pb['cancel_total']) }}</td></tr>
                 <tr><td>Komplain pelanggan yang dicatat ({{ ($pb['complaints']['selesai'] ?? 0) }} selesai, {{ $pb['complaint_count'] - ($pb['complaints']['selesai'] ?? 0) }} belum selesai)</td><td class="n">{{ $pb['complaint_count'] }}</td><td class="n">-</td></tr>
+                <tr><td>Barang rusak menunggu pemasok (posisi saat ini)</td><td class="n">{{ $pb['claims_open_count'] }}</td><td class="n">{{ $rp($pb['claims_open_value']) }}</td></tr>
                 <tr><td>Klaim garansi (komplain)</td><td class="n">{{ count($pb['warranty']) }}</td><td class="n">{{ $rp($pb['warranty_total']) }}</td></tr>
             </table>
             <p class="iz-task-sub" style="margin:10px 0 0">{{ $pb['receipts'] }} struk dibuat pada tanggal ini; {{ $pb['void_count'] }} struk dibatalkan pada tanggal ini (bisa struk dari hari sebelumnya). {{ $pb['services_done'] }} servis selesai, {{ count($pb['warranty']) }} klaim garansi.</p>

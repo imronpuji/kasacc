@@ -77,6 +77,9 @@ class Suppliers extends Page implements HasTable
     public function table(Table $table): Table
     {
         $owed = $this->owedMap();
+        $claims = \App\Models\SupplierClaim::where('status', 'open')->whereNotNull('supplier_id')
+            ->selectRaw('supplier_id, count(*) as n, sum(cost) as v')->groupBy('supplier_id')->get()
+            ->mapWithKeys(fn ($r) => [$r->supplier_id => $r->n.' barang, Rp'.number_format($r->v, 0, ',', '.')])->all();
 
         return $table
             ->query(fn (): Builder => Supplier::query()->orderByDesc('is_active')->orderBy('name'))
@@ -88,6 +91,8 @@ class Suppliers extends Page implements HasTable
                 TextColumn::make('address')->label('Alamat')->placeholder('-')->limit(40),
                 TextColumn::make('owed')->label('Sisa utang')->alignEnd()
                     ->state(fn (Supplier $r) => 'Rp'.number_format($owed[$r->id] ?? 0, 0, ',', '.')),
+                TextColumn::make('open_claims')->label('Klaim menunggu')->alignEnd()
+                    ->state(fn (Supplier $r) => $claims[$r->id] ?? '-'),
                 IconColumn::make('is_active')->label('Aktif')->boolean(),
             ])
             ->headerActions([

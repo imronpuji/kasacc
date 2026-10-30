@@ -124,6 +124,18 @@ class Stok extends Page implements HasTable
                     self::guard($u, (int) $data['branch_id']);
                     app(Transactions::class)->returnToSupplier((int) $data['branch_id'], now()->toDateString(), $data['sku'], (int) $data['qty'], $data['method'], ($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null);
                 }, 'Pengembalian dicatat', 'Stok barang sudah berkurang.')),
+                Action::make('klaim')->label('Klaim barang rusak ke pemasok')->modalHeading('Klaim barang rusak ke pemasok')->modalSubmitActionLabel('Simpan klaim')
+                    ->modalDescription('Barang keluar dari stok bagus dan menunggu pemasok: diganti baru, uang kembali, atau ditolak. Selesaikan di menu Klaim pemasok.')
+                    ->schema([
+                        $branchSelect('branch_id', 'Cabang asal barang'),
+                        $skuSelect(),
+                        Select::make('supplier_id')->label('Pemasok (boleh diisi nanti)')->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))->searchable()->placeholder('Pilih pemasok'),
+                        $qtyInput('Jumlah rusak', 'Tidak boleh lebih dari stok yang ada.'),
+                        TextInput::make('reason')->label('Kerusakan')->required()->maxLength(200)->placeholder('Contoh: layar bergaris'),
+                    ])->action(fn (array $data) => self::run(function ($u) use ($data) {
+                        self::guard($u, (int) $data['branch_id']);
+                        app(\App\Domain\Purchasing\SupplierClaimService::class)->fromStock($u, (int) $data['branch_id'], now()->toDateString(), $data['sku'], (int) $data['qty'], $data['reason'], ($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null);
+                    }, 'Klaim dicatat', 'Barang keluar dari stok dan menunggu pemasok.')),
                 Action::make('transfer')->label('Pindahkan stok ke cabang lain')->modalHeading('Pindahkan stok ke cabang lain')->modalSubmitActionLabel('Pindahkan stok')->schema([
                     $branchSelect('from', 'Dari cabang')->live(),
                     Select::make('to')->label('Ke cabang')->placeholder('Pilih cabang tujuan')->required()

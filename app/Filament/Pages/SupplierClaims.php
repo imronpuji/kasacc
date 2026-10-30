@@ -25,7 +25,7 @@ class SupplierClaims extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected string $view = 'filament.pages.servis';
+    protected string $view = 'filament.pages.table-page';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPath;
 

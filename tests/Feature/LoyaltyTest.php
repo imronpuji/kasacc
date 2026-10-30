@@ -136,20 +136,20 @@ it('uses points when a service is completed and gives points on what was actuall
 it('shows points in the cashier, customer list and customer portal', function () {
     $this->loyalty->adjust($this->customer, 25, 'bonus', $this->owner);
 
-    Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)
+    Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)
         ->set('customerContact', 'budi@example.com')->assertSee('25 poin');
 
-    Livewire\Livewire::actingAs($this->owner)->test(App\Filament\Pages\Pelanggan::class)
+    Livewire\Livewire::actingAs($this->owner)->test(App\Filament\Pages\Customers::class)
         ->assertSee('Budi')->callTableAction('koreksiPoin', $this->customer, data: ['points' => 5, 'reason' => 'hadiah'])->assertHasNoTableActionErrors();
     expect($this->loyalty->balance($this->customer))->toBe(30);
 
-    $this->actingAs($this->customer, 'customer')->get(route('pelanggan.beranda'))->assertOk()->assertSee('30 poin');
+    $this->actingAs($this->customer, 'customer')->get(route('customer.home'))->assertOk()->assertSee('30 poin');
 });
 
 it('lets the cashier page pay with points and clamps to the allowed maximum', function () {
     $this->loyalty->adjust($this->customer, 100_000, 'banyak', $this->owner);
 
-    $page = Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)
+    $page = Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)
         ->set('branchId', $this->branch->id)->call('add', $this->productId)->call('changeQty', $this->productId, 3) // 4 x 50.000
         ->set('customerContact', 'budi@example.com')->set('redeemPoints', '999999');
     $page->call('checkout');

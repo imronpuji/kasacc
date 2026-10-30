@@ -54,6 +54,8 @@ class OpsReportService
 
         return [
             'complaints' => $complaints, 'complaint_count' => array_sum($complaints),
+            'partial_returns' => DB::table('pos_sale_returns')->whereBetween('returned_on', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
+            'partial_return_total' => (int) DB::table('pos_sale_returns')->whereBetween('returned_on', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('refund'),
             // Selisih yang sudah dibukukan pada periode ini (negatif = rugi): hasil opname dan tutup kas.
             'stock_diff' => (int) DB::table('stock_counts')->where('status', 'posted')->whereBetween(DB::raw('DATE(posted_at)'), [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('diff_value'),
             'cash_diff' => (int) DB::table('cash_closings')->where('status', 'closed')->whereNotNull('journal_id')->whereBetween('closing_date', [$from, $to])->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sum('diff'),
@@ -163,6 +165,7 @@ class OpsReportService
 
         $paid = (int) $lines->sum('debit');
         $open = [];
+        $invoices = \App\Models\PurchaseInvoice::with('supplier')->whereIn('journal_id', $lines->pluck('journal_id'))->get()->keyBy('journal_id');
         foreach ($lines as $l) {
             if ($l->credit <= 0) {
                 continue;
@@ -171,8 +174,13 @@ class OpsReportService
             $paid -= $take;
             $left = (int) $l->credit - $take;
             if ($left > 0) {
+                $inv = $invoices[$l->journal_id] ?? null;
+                $due = $inv?->due_date ? $inv->due_date->toDateString() : null;
                 $open[] = ['journal_id' => $l->journal_id, 'date' => (string) $l->entry_date, 'description' => $l->description, 'open' => $left,
-                    'age_days' => (int) \Carbon\CarbonImmutable::parse($l->entry_date)->diffInDays(\Carbon\CarbonImmutable::parse($asOf))];
+                    'age_days' => (int) \Carbon\CarbonImmutable::parse($l->entry_date)->diffInDays(\Carbon\CarbonImmutable::parse($asOf)),
+                    'invoice_no' => $inv?->invoice_no, 'supplier' => $inv?->supplier?->name, 'due_date' => $due,
+                    // Positif = sudah lewat jatuh tempo sekian hari; negatif = masih sekian hari lagi; null = tidak ada jatuh tempo (utang lama).
+                    'overdue_days' => $due ? (int) \Carbon\CarbonImmutable::parse($due)->diffInDays(\Carbon\CarbonImmutable::parse($asOf), false) : null];
             }
         }
 
@@ -182,6 +190,9 @@ class OpsReportService
             $buckets[$key] += $r['open'];
         }
 
-        return ['rows' => $open, 'buckets' => $buckets, 'total' => array_sum($buckets)];
+        $overdue = (int) collect($open)->filter(fn ($r) => $r['overdue_days'] !== null && $r['overdue_days'] > 0)->sum('open');
+        $dueSoon = (int) collect($open)->filter(fn ($r) => $r['overdue_days'] !== null && $r['overdue_days'] <= 0 && $r['overdue_days'] >= -7)->sum('open');
+
+        return ['rows' => $open, 'buckets' => $buckets, 'total' => array_sum($buckets), 'overdue' => $overdue, 'due_soon' => $dueSoon];
     }
 }

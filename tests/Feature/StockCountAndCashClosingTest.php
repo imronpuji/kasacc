@@ -179,7 +179,7 @@ it('shows both differences in the problems report and the pages load for the rig
 
     Livewire\Livewire::actingAs($this->owner)->test(App\Filament\Pages\CashClosings::class)->assertSuccessful()->assertSee('salah kembalian');
     Livewire\Livewire::actingAs($this->finance)->test(App\Filament\Pages\StockCounts::class)->assertSuccessful();
-    Livewire\Livewire::actingAs($this->owner)->test(App\Filament\Pages\Laporan::class)->call('setReport', 'masalah')->assertSee('Selisih stok hasil opname');
+    Livewire\Livewire::actingAs($this->owner)->test(App\Filament\Pages\Reports::class)->call('setReport', 'masalah')->assertSee('Selisih stok hasil opname');
     expect(StockCount::count())->toBe(1);
 });
 

@@ -23,7 +23,7 @@ class ServiceTicketService
         'siap_diambil' => 'Siap diambil',
     ];
 
-    public function __construct(private Transactions $transactions, private CustomerService $customers, private \App\Domain\Loyalty\LoyaltyService $loyalty)
+    public function __construct(private Transactions $transactions, private CustomerService $customers, private \App\Domain\Loyalty\LoyaltyService $loyalty, private \App\Domain\Customer\CustomerNotifier $notifier)
     {
     }
 
@@ -53,7 +53,7 @@ class ServiceTicketService
             throw new DomainException('Proses tidak dikenal. Pilih salah satu proses yang tersedia.');
         }
 
-        return DB::transaction(function () use ($ticket, $user, $progress, $note) {
+        $ticket = DB::transaction(function () use ($ticket, $user, $progress, $note) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
                 throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi prosesnya tidak bisa diubah lagi.');
@@ -63,6 +63,13 @@ class ServiceTicketService
 
             return $ticket;
         });
+
+        // Di luar transaksi: email lambat atau gagal tidak boleh menahan atau membatalkan perubahan proses.
+        if ($progress === 'siap_diambil') {
+            $this->notifier->serviceReady($ticket);
+        }
+
+        return $ticket;
     }
 
     private function authorize(User $user, int $branchId): void

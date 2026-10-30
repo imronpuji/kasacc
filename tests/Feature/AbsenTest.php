@@ -106,18 +106,18 @@ it('usulan absensi bulanan: hadir dan terlambat dari absen harian, alpa dari sis
 });
 
 it('halaman Absen saya: karyawan berakun bisa buka, akun tanpa karyawan 403, absen lewat layar', function () {
-    $this->actingAs($this->user)->get('/admin/absen-saya')->assertOk()->assertSee('Absen masuk');
+    $this->actingAs($this->user)->get('/admin/my-attendance')->assertOk()->assertSee('Absen masuk');
     $lain = User::factory()->create();
     $lain->assignRole('staff');
-    $this->actingAs($lain)->get('/admin/absen-saya')->assertForbidden();
-    Livewire::actingAs($this->user)->test(App\Filament\Pages\AbsenSaya::class)->call('clockIn', TOKO_LAT, TOKO_LNG, 5)->assertNotified('Absen masuk berhasil');
+    $this->actingAs($lain)->get('/admin/my-attendance')->assertForbidden();
+    Livewire::actingAs($this->user)->test(App\Filament\Pages\MyAttendance::class)->call('clockIn', TOKO_LAT, TOKO_LNG, 5)->assertNotified('Absen masuk berhasil');
     expect(AttendanceLog::count())->toBe(1);
-    Livewire::actingAs($this->user)->test(App\Filament\Pages\AbsenSaya::class)->call('clockIn', TOKO_LAT + 0.01, TOKO_LNG, 5)->assertNotified('Absen gagal');
+    Livewire::actingAs($this->user)->test(App\Filament\Pages\MyAttendance::class)->call('clockIn', TOKO_LAT + 0.01, TOKO_LNG, 5)->assertNotified('Absen gagal');
     expect(AttendanceLog::count())->toBe(1);
 });
 
 it('karyawan umum (staff) hanya membuka Absen saya, bukan halaman lain', function () {
-    foreach (['/admin/kasir', '/admin/servis', '/admin/stok', '/admin/laporan', '/admin/payroll', '/admin/karyawan', '/admin/rekap-absen'] as $url) {
+    foreach (['/admin/pos', '/admin/service-tickets', '/admin/stock', '/admin/reports', '/admin/payroll', '/admin/employees', '/admin/attendance-summary'] as $url) {
         $this->actingAs($this->user)->get($url)->assertForbidden();
     }
     $this->actingAs($this->user)->get('/admin')->assertOk();
@@ -127,8 +127,8 @@ it('HR melihat rekap absen, karyawan biasa tidak', function () {
     $this->svc->clockIn($this->user, TOKO_LAT, TOKO_LNG, 5);
     $hr = User::factory()->create();
     $hr->assignRole('hr');
-    $this->actingAs($hr)->get('/admin/rekap-absen')->assertOk()->assertSee('Sari');
-    $this->actingAs($this->user)->get('/admin/rekap-absen')->assertForbidden();
+    $this->actingAs($hr)->get('/admin/attendance-summary')->assertOk()->assertSee('Sari');
+    $this->actingAs($this->user)->get('/admin/attendance-summary')->assertForbidden();
 });
 
 it('form cabang: koordinat di luar batas, radius terlalu kecil atau besar ditolak', function () {

@@ -48,10 +48,10 @@ ProductionSeeder membuat bagan akun, peran (owner, approver, finance_admin, hr, 
 6. Ganti password pemilik.
 
 ## Portal pelanggan (masuk dengan email + kode)
-- Pelanggan masuk di `/pelanggan/masuk` dengan email + kode 6 angka yang dikirim ke email itu.
+- Pelanggan masuk di `/customer/login` dengan email + kode 6 angka yang dikirim ke email itu.
 - Pakai Resend: `KASIR_OTP_DRIVER=mail`, `MAIL_MAILER=resend`, `RESEND_API_KEY=...`, `MAIL_FROM_ADDRESS=` alamat dari domain yang sudah diverifikasi di Resend.
 - Bawaan `KASIR_OTP_DRIVER=log` hanya menulis kode ke log dan **ditolak di produksi**, jadi portal menolak masuk sampai driver `mail` diisi.
-- Tautan lacak servis (`/lacak/{token}`) tidak butuh masuk dan sudah aktif; hanya menampilkan status.
+- Tautan lacak servis (`/track/{token}`) tidak butuh masuk dan sudah aktif; hanya menampilkan status.
 
 ## Pemeriksaan sebelum klien memakai
 - Login sebagai tiap peran, pastikan menu yang tampil sesuai tugasnya.

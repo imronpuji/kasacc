@@ -131,6 +131,9 @@ class PosService
             if ($sale->voided_at) {
                 throw new DomainException('Struk ini sudah dibatalkan sebelumnya.');
             }
+            if ($sale->returns()->exists()) {
+                throw new DomainException('Struk ini sudah ada retur sebagian, jadi tidak bisa dibatalkan penuh. Retur sisa barangnya lewat "Retur sebagian".');
+            }
 
             // Uang yang dikembalikan sama dengan yang diterima toko: total dikurangi potongan poin dan biaya QRIS.
             $this->transactions->assertFunds($sale->branch_id, $date, $sale->payment_method, (int) $sale->total - (int) $sale->discount - (int) $sale->mdr);
@@ -163,6 +166,109 @@ class PosService
             $this->loyalty->reverse('pos_sale', $sale->id, $user->id);
 
             return $sale;
+        });
+    }
+
+    /** Pembulatan setengah ke atas untuk pembagian bilangan bulat. */
+    private static function ratio(int $amount, int $part, int $whole): int
+    {
+        return $whole > 0 ? intdiv(2 * $amount * $part + $whole, 2 * $whole) : 0;
+    }
+
+    /**
+     * Retur sebagian: pelanggan mengembalikan sebagian barang di struk. $items: [['product_id' => 1, 'qty' => 1, 'defective' => false]].
+     * Uang kembali = harga barang dikurangi bagian potongan poin; barang bagus masuk stok, barang rusak jadi klaim ke pemasok.
+     * Biaya QRIS (MDR) yang sudah dibayar toko tidak dikembalikan. Butuh izin yang sama dengan membatalkan struk.
+     */
+    public function partialReturn(User $user, string $receiptNo, string $date, string $reason, array $items): \App\Models\PosSaleReturn
+    {
+        if (! $user->can('void-sales')) {
+            throw new DomainException('Anda tidak berwenang meretur barang. Minta pemilik atau penyetuju yang ditunjuk.');
+        }
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new DomainException('Alasan retur harus diisi, misalnya "ukuran tidak cocok" atau "barang rusak".');
+        }
+        if ($items === []) {
+            throw new DomainException('Pilih barang yang dikembalikan dan jumlahnya.');
+        }
+
+        return DB::transaction(function () use ($user, $receiptNo, $date, $reason, $items) {
+            $sale = PosSale::where('receipt_no', $receiptNo)->lockForUpdate()->first();
+            if (! $sale) {
+                throw new DomainException('Nomor struk tidak ditemukan. Periksa nomor yang tercetak di struk.');
+            }
+            if (! $user->canAccessBranch($sale->branch_id)) {
+                throw new DomainException('Anda tidak punya akses ke cabang struk ini. Pilih cabang lain atau hubungi pemilik toko.');
+            }
+            if ($sale->voided_at) {
+                throw new DomainException('Struk ini sudah dibatalkan, tidak ada yang bisa diretur lagi.');
+            }
+
+            $total = (int) $sale->total;
+            $discount = (int) $sale->discount;
+            $before = $sale->returns()->get(['gross', 'discount_share', 'refund']);
+            $grossBefore = (int) $before->sum('gross');
+            $shareBefore = (int) $before->sum('discount_share');
+            $refundBefore = (int) $before->sum('refund');
+
+            $rows = [];
+            $gross = 0;
+            $cost = 0;
+            $seen = [];
+            foreach ($items as $it) {
+                $pid = (int) ($it['product_id'] ?? 0);
+                $qty = (int) ($it['qty'] ?? 0);
+                if (isset($seen[$pid])) {
+                    throw new DomainException('Barang yang sama ditulis dua kali. Gabungkan jumlahnya jadi satu baris.');
+                }
+                $seen[$pid] = true;
+                $line = $sale->items()->where('product_id', $pid)->first();
+                if (! $line) {
+                    throw new DomainException('Ada barang yang tidak ada di struk ini. Periksa lagi barang yang dipilih.');
+                }
+                $returned = (int) DB::table('pos_sale_return_items as ri')->join('pos_sale_returns as r', 'r.id', '=', 'ri.pos_sale_return_id')
+                    ->where('r.pos_sale_id', $sale->id)->where('ri.product_id', $pid)->sum('ri.qty');
+                if ($qty <= 0 || $qty > (int) $line->qty - $returned) {
+                    throw new DomainException('Jumlah retur melebihi yang bisa diretur ('.((int) $line->qty - $returned).' dari '.(int) $line->qty.' yang dibeli). Periksa jumlahnya.');
+                }
+                // Modal diambil dari pergerakan stok struk ini, dibagi rata per buah dan dihitung kumulatif supaya total tepat.
+                $moves = StockMovement::where('branch_id', $sale->branch_id)->where('reference', $sale->receipt_no)->where('product_id', $pid)
+                    ->where('direction', 'out')->where('reason', 'penjualan')->get();
+                $soldQty = (int) $moves->sum('qty');
+                $soldCost = (int) $moves->sum('total_cost');
+                $lineCost = self::ratio($soldCost, $returned + $qty, $soldQty) - self::ratio($soldCost, $returned, $soldQty);
+                $lineGross = $qty * (int) $line->unit_price;
+                $gross += $lineGross;
+                $cost += $lineCost;
+                $rows[] = ['product_id' => $pid, 'qty' => $qty, 'line_gross' => $lineGross, 'cost' => $lineCost, 'defective' => (bool) ($it['defective'] ?? false)];
+            }
+
+            $share = self::ratio($discount, $grossBefore + $gross, $total) - self::ratio($discount, $grossBefore, $total);
+            $refund = $gross - $share;
+            // Uang yang dikembalikan harus ada saldonya.
+            $this->transactions->assertFunds($sale->branch_id, $date, $sale->payment_method, $refund);
+
+            $return = \App\Models\PosSaleReturn::create([
+                'pos_sale_id' => $sale->id, 'branch_id' => $sale->branch_id, 'returned_on' => $date, 'gross' => $gross,
+                'discount_share' => $share, 'refund' => $refund, 'cost' => $cost, 'reason' => mb_substr($reason, 0, 200), 'created_by' => $user->id,
+            ]);
+            $journal = $this->transactions->posSaleReturn($sale->branch_id, $date, $sale->payment_method, $gross, $refund, $share, $cost, 'RETUR-'.$return->id);
+            $return->update(['journal_id' => $journal->id]);
+
+            foreach ($rows as $r) {
+                $return->items()->create($r);
+                if ($r['defective']) {
+                    $this->claims->fromReturnedSale($user, $sale, $r['product_id'], $r['qty'], $r['cost'], $date, 'Barang rusak diretur pelanggan, struk '.$sale->receipt_no);
+                } else {
+                    $this->inventory->receive($sale->branch_id, $r['product_id'], $r['qty'], $r['cost'], $date, 'retur penjualan', $sale->receipt_no);
+                }
+            }
+
+            $customer = $sale->customer_id ? \App\Models\Customer::find($sale->customer_id) : null;
+            $this->loyalty->reversePartial($customer, $sale->id, $return->id, $total - $discount, $refundBefore, $refund, $discount, $shareBefore, $share, (int) $sale->points_redeemed, $user->id);
+
+            return $return->load('items');
         });
     }
 

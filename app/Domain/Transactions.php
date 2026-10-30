@@ -100,6 +100,17 @@ class Transactions
         });
     }
 
+    /** Faktur pembelian banyak barang: satu jurnal untuk seluruh total (stok diterima oleh pemanggil). */
+    public function purchaseInvoice(int $branchId, string $date, int $total, string $method, int $supplierId, string $reference): Journal
+    {
+        $this->assertFunds($branchId, $date, $method, $total);
+
+        return $this->post($branchId, $date, [
+            ['account' => self::PERSEDIAAN, 'debit' => $total],
+            ['account' => in_array($method, ['kredit', 'utang'], true) ? self::UTANG : $this->moneyAccount($method), 'credit' => $total],
+        ], 'purchase', 'Faktur pembelian '.$reference, $reference, $supplierId);
+    }
+
     /** Retur ke supplier pada biaya rata-rata saat ini; pengembalian uang via $refundMethod atau mengurangi utang. */
     public function returnToSupplier(int $branchId, string $date, string $sku, int $qty, string $refundMethod, ?int $supplierId = null): Journal
     {
@@ -257,6 +268,27 @@ class Transactions
             ? [['account' => $acc, 'debit' => -$diff], ['account' => self::KAS, 'credit' => -$diff]]
             : [['account' => self::KAS, 'debit' => $diff], ['account' => $acc, 'credit' => $diff]],
             'manual', 'Selisih kas '.$reference, $reference);
+    }
+
+    /**
+     * Retur sebagian penjualan kasir: pendapatan berkurang sebesar $gross, uang keluar $refund, sisanya ($discountShare)
+     * adalah potongan poin yang ikut dibatalkan; modal barang ($cost) kembali dari HPP ke persediaan.
+     */
+    public function posSaleReturn(int $branchId, string $date, string $method, int $gross, int $refund, int $discountShare, int $cost, string $reference): Journal
+    {
+        $lines = [['account' => self::PEND_BARANG, 'debit' => $gross]];
+        if ($refund > 0) {
+            $lines[] = ['account' => $this->moneyAccount($method), 'credit' => $refund];
+        }
+        if ($discountShare > 0) {
+            $lines[] = ['account' => $this->ensure(self::BEBAN_POIN), 'credit' => $discountShare];
+        }
+        if ($cost > 0) {
+            $lines[] = ['account' => self::PERSEDIAAN, 'debit' => $cost];
+            $lines[] = ['account' => self::HPP, 'credit' => $cost];
+        }
+
+        return $this->post($branchId, $date, $lines, 'pos', 'Retur sebagian '.$reference, $reference);
     }
 
     public function warrantyClaim(int $branchId, string $date, string $sku, int $qty, ?string $ticket = null): Journal

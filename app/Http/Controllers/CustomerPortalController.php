@@ -19,16 +19,16 @@ class CustomerPortalController extends Controller
         $ticket = ServiceTicket::with('branch')->where('public_token', $token)->firstOrFail();
         $logs = DB::table('service_progress_logs')->where('service_ticket_id', $ticket->id)->orderBy('id')->get(['progress', 'note', 'created_at']);
 
-        return view('pelanggan.lacak', ['t' => $ticket, 'status' => ServiceTicketService::publicStatus($ticket), 'logs' => $logs]);
+        return view('customer.track', ['t' => $ticket, 'status' => ServiceTicketService::publicStatus($ticket), 'logs' => $logs]);
     }
 
     public function loginForm()
     {
         if (Auth::guard('customer')->check()) {
-            return redirect()->route('pelanggan.beranda');
+            return redirect()->route('customer.home');
         }
 
-        return view('pelanggan.masuk');
+        return view('customer.login');
     }
 
     public function sendCode(Request $request, OtpService $otp)
@@ -41,17 +41,17 @@ class CustomerPortalController extends Controller
         }
 
         // Pesan sama untuk nomor terdaftar maupun tidak, supaya nomor orang lain tidak bisa ditebak.
-        return redirect()->route('pelanggan.verifikasi')->with('email', $data['email']);
+        return redirect()->route('customer.verify')->with('email', $data['email']);
     }
 
     public function verifyForm(Request $request)
     {
         $email = $request->session()->get('email', $request->old('email'));
         if (! $email) {
-            return redirect()->route('pelanggan.masuk');
+            return redirect()->route('customer.login');
         }
 
-        return view('pelanggan.kode', ['email' => $email]);
+        return view('customer.send-code', ['email' => $email]);
     }
 
     public function verify(Request $request, OtpService $otp)
@@ -66,17 +66,17 @@ class CustomerPortalController extends Controller
         Auth::guard('customer')->login($customer);
         $request->session()->regenerate();
 
-        return redirect()->route('pelanggan.beranda');
+        return redirect()->route('customer.home');
     }
 
     public function home()
     {
         $customer = Auth::guard('customer')->user();
         if (! $customer) {
-            return redirect()->route('pelanggan.masuk');
+            return redirect()->route('customer.login');
         }
 
-        return view('pelanggan.beranda', [
+        return view('customer.home', [
             'customer' => $customer,
             'tickets' => $customer->tickets()->with('branch')->latest('id')->limit(50)->get(),
             'sales' => $customer->sales()->with('branch')->latest('id')->limit(50)->get(),
@@ -90,6 +90,6 @@ class CustomerPortalController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('pelanggan.masuk');
+        return redirect()->route('customer.login');
     }
 }

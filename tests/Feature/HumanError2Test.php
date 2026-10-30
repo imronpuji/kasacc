@@ -143,7 +143,7 @@ it('periode: membalik jurnal pada bulan terkunci ditolak', function () {
 it('kasir layar: barang tanpa harga tidak masuk keranjang, keranjang kosong tidak bisa dibayar', function () {
     $free = Product::create(['sku' => 'FREE', 'name' => 'Belum ada harga', 'kind' => 'aksesoris', 'sale_price' => 0]);
     $s = ($this->snap)();
-    $lw = Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $free->id);
+    $lw = Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $free->id);
     expect($lw->get('cart'))->toBe([]);
     $lw->call('checkout');
     expect(($this->snap)())->toBe($s);
@@ -151,16 +151,16 @@ it('kasir layar: barang tanpa harga tidak masuk keranjang, keranjang kosong tida
 
 it('kasir layar: ganti cabang ke cabang lain lewat data palsu, metode palsu, atau qty palsu tidak membuat penjualan', function () {
     $s = ($this->snap)();
-    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id)->set('branchId', $this->b->id)->call('checkout');
-    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id)->set('method', 'kartu-kredit')->call('checkout');
-    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id)->set("cart.{$this->case->id}.qty", -5)->call('checkout');
-    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id)->set("cart.{$this->case->id}.qty", 'banyak')->call('checkout');
-    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id)->set("cart.{$this->case->id}.price", 1)->call('checkout');
+    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id)->set('branchId', $this->b->id)->call('checkout');
+    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id)->set('method', 'kartu-kredit')->call('checkout');
+    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id)->set("cart.{$this->case->id}.qty", -5)->call('checkout');
+    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id)->set("cart.{$this->case->id}.qty", 'banyak')->call('checkout');
+    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id)->set("cart.{$this->case->id}.price", 1)->call('checkout');
     expect(PosSale::where('total', '<', 100_000)->exists())->toBeFalse(); // harga tidak bisa diakali murah lewat data palsu
 });
 
 it('kasir layar: pencarian dengan karakter aneh tidak membuat error', function (string $q) {
-    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->set('search', $q)->assertSuccessful();
+    Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->set('search', $q)->assertSuccessful();
 })->with(['%', "'; DROP TABLE products;--", '\\', str_repeat('x', 500), '   ', '😀']);
 
 it('kasir: jual persis sebanyak stok berhasil, satu lagi ditolak (batas stok)', function () {
@@ -176,12 +176,12 @@ it('kasir: harga override nol atau negatif ditolak', function (int $price) {
 
 it('struk: pengguna cabang lain, teknisi, tamu, dan nomor ngawur tidak bisa membuka', function () {
     $sale = $this->pos->checkout($this->cashier, $this->a->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kas');
-    $this->actingAs($this->cashier)->get(route('struk', $sale->receipt_no))->assertOk();
-    $this->actingAs(euser('cashier', $this->b->id))->get(route('struk', $sale->receipt_no))->assertForbidden();
-    $this->actingAs($this->tech)->get(route('struk', $sale->receipt_no))->assertForbidden();
-    $this->actingAs($this->cashier)->get(route('struk', 'POS-NGAWUR-0001'))->assertNotFound();
+    $this->actingAs($this->cashier)->get(route('receipt', $sale->receipt_no))->assertOk();
+    $this->actingAs(euser('cashier', $this->b->id))->get(route('receipt', $sale->receipt_no))->assertForbidden();
+    $this->actingAs($this->tech)->get(route('receipt', $sale->receipt_no))->assertForbidden();
+    $this->actingAs($this->cashier)->get(route('receipt', 'POS-NGAWUR-0001'))->assertNotFound();
     auth()->logout();
-    $this->get(route('struk', $sale->receipt_no))->assertForbidden();
+    $this->get(route('receipt', $sale->receipt_no))->assertForbidden();
 });
 
 // ---- Pembayaran utang ----
@@ -224,7 +224,7 @@ it('garansi: tiket belum selesai, stok kurang, atau SKU salah ditolak, biaya gar
 });
 
 it('servis layar: nama kosong, DP negatif, dan harga sparepart nol ditolak oleh form', function () {
-    $lw = fn () => Livewire::actingAs($this->owner)->test(App\Filament\Pages\Servis::class);
+    $lw = fn () => Livewire::actingAs($this->owner)->test(App\Filament\Pages\ServiceTickets::class);
     $lw()->callAction(TestAction::make('terima')->table(), ['branch_id' => $this->a->id, 'customer_name' => '', 'device' => 'iPhone'])->assertHasActionErrors(['customer_name']);
     $lw()->callAction(TestAction::make('terima')->table(), ['branch_id' => $this->a->id, 'customer_name' => 'Rina', 'device' => '', 'deposit' => -5])->assertHasActionErrors(['device', 'deposit']);
     expect(ServiceTicket::count())->toBe(0);
@@ -234,7 +234,7 @@ it('servis layar: nama kosong, DP negatif, dan harga sparepart nol ditolak oleh 
 
 it('stok layar: qty nol, harga beli nol, dan retur melebihi stok tidak mengubah apa pun', function () {
     $s = ($this->snap)();
-    $lw = fn () => Livewire::actingAs($this->owner)->test(App\Filament\Pages\Stok::class);
+    $lw = fn () => Livewire::actingAs($this->owner)->test(App\Filament\Pages\Stock::class);
     $lw()->callAction(TestAction::make('pembelian')->table(), ['branch_id' => $this->a->id, 'sku' => 'CASE', 'qty' => 0, 'unit_cost' => 0, 'method' => 'kas'])->assertHasActionErrors(['qty', 'unit_cost']);
     $lw()->callAction(TestAction::make('retur')->table(), ['branch_id' => $this->a->id, 'sku' => 'CASE', 'qty' => 99, 'method' => 'kas']);
     $lw()->callAction(TestAction::make('transfer')->table(), ['from' => $this->a->id, 'to' => $this->a->id, 'sku' => 'CASE', 'qty' => 1]);
@@ -245,7 +245,7 @@ it('stok layar: qty nol, harga beli nol, dan retur melebihi stok tidak mengubah 
 it('stok layar: staf pembelian cabang lain tidak bisa membeli untuk cabang yang bukan miliknya', function () {
     $fin = euser('finance_admin', $this->b->id);
     $s = ($this->snap)();
-    Livewire::actingAs($fin)->test(App\Filament\Pages\Stok::class)
+    Livewire::actingAs($fin)->test(App\Filament\Pages\Stock::class)
         ->callAction(TestAction::make('pembelian')->table(), ['branch_id' => $this->a->id, 'sku' => 'CASE', 'qty' => 1, 'unit_cost' => 1000, 'method' => 'kas']);
     expect(($this->snap)())->toBe($s);
 });
@@ -342,14 +342,14 @@ it('slip gaji: tamu, teknisi lain, dan slip yang belum disetujui tidak bisa dibu
     $sari = ($this->mk)('Sari', '2025-06-01', 4_000_000, ['user_id' => $uSari->id]);
     $this->hrs->recordAttendance($this->hr, $sari, 2027, 1, $this->full);
     $run = $this->payroll->generate($this->hr, $this->a->id, 2027, 1);
-    $this->actingAs($uSari)->get(route('slip', $run->id))->assertForbidden(); // masih draft
+    $this->actingAs($uSari)->get(route('payslip', $run->id))->assertForbidden(); // masih draft
     $this->payroll->approve($this->boss, $run, '2027-01-31');
-    $this->actingAs($uSari)->get(route('slip', $run->id))->assertOk();
-    $this->actingAs($this->tech)->get(route('slip', $run->id))->assertForbidden(); // slip orang lain
-    $this->actingAs($this->hr)->get(route('slip', $run->id))->assertOk();
-    $this->actingAs($this->boss)->get(route('slip', 99999))->assertNotFound();
+    $this->actingAs($uSari)->get(route('payslip', $run->id))->assertOk();
+    $this->actingAs($this->tech)->get(route('payslip', $run->id))->assertForbidden(); // slip orang lain
+    $this->actingAs($this->hr)->get(route('payslip', $run->id))->assertOk();
+    $this->actingAs($this->boss)->get(route('payslip', 99999))->assertNotFound();
     auth()->logout();
-    $this->get(route('slip', $run->id))->assertRedirect(); // tamu diarahkan ke halaman masuk
+    $this->get(route('payslip', $run->id))->assertRedirect(); // tamu diarahkan ke halaman masuk
 });
 
 // ---- Rekonsiliasi bank ----
@@ -420,7 +420,7 @@ it('bank: batal cocok lalu cocokkan ulang ke catatan yang benar berjalan, kasir 
 it('tamu yang membuka halaman admin diarahkan ke login', function () {
     auth()->logout();
     $this->get('/admin')->assertRedirect();
-    $this->get('/admin/kasir')->assertRedirect();
+    $this->get('/admin/pos')->assertRedirect();
 });
 
 it('menu data master (akun, cabang, produk) tidak terbuka untuk kasir, teknisi, dan HR', function (string $role) {
@@ -440,9 +440,9 @@ it('akun dan cabang hanya untuk pemilik, produk untuk yang boleh pembelian', fun
 
 it('halaman per peran: tiap peran hanya membuka halaman miliknya', function () {
     $matrix = [
-        'cashier' => ['/admin/kasir' => 200, '/admin/servis' => 200, '/admin/stok' => 403, '/admin/laporan' => 403, '/admin/payroll' => 403, '/admin/karyawan' => 403, '/admin/persetujuan-cuti' => 403],
-        'technician' => ['/admin/kasir' => 403, '/admin/servis' => 200, '/admin/stok' => 403, '/admin/laporan' => 403],
-        'hr' => ['/admin/kasir' => 403, '/admin/servis' => 403, '/admin/stok' => 403, '/admin/laporan' => 403, '/admin/karyawan' => 200],
+        'cashier' => ['/admin/pos' => 200, '/admin/service-tickets' => 200, '/admin/stock' => 403, '/admin/reports' => 403, '/admin/payroll' => 403, '/admin/employees' => 403, '/admin/leave-approvals' => 403],
+        'technician' => ['/admin/pos' => 403, '/admin/service-tickets' => 200, '/admin/stock' => 403, '/admin/reports' => 403],
+        'hr' => ['/admin/pos' => 403, '/admin/service-tickets' => 403, '/admin/stock' => 403, '/admin/reports' => 403, '/admin/employees' => 200],
     ];
     foreach ($matrix as $role => $urls) {
         $u = euser($role, $this->a->id);
@@ -467,7 +467,7 @@ it('dashboard: tiap peran bisa membuka tanpa error, kasir tidak melihat angka ke
 });
 
 it('laporan: tanggal ngawur atau terbalik tidak membuat error', function () {
-    $lw = Livewire::actingAs($this->owner)->test(App\Filament\Pages\Laporan::class);
+    $lw = Livewire::actingAs($this->owner)->test(App\Filament\Pages\Reports::class);
     $lw->set('from', '2026-12-31')->set('to', '2026-01-01')->assertSuccessful();
     $lw->set('from', 'bukan tanggal')->assertSuccessful();
     $lw->set('to', '')->set('from', '')->assertSuccessful();
@@ -483,11 +483,11 @@ it('nota servis bisa dicetak oleh yang berhak dan menolak cabang lain atau tamu'
         'branch_id' => $this->a->id, 'code' => 'SV-NOTA1', 'customer_name' => 'Budi', 'device' => 'iPhone 11', 'complaint' => 'layar pecah',
         'status' => 'diterima', 'deposit' => 100_000, 'received_on' => '2026-11-10',
     ]);
-    $this->actingAs($this->owner)->get(route('nota', 'SV-NOTA1'))->assertOk()->assertSee('NOTA SERVIS')->assertSee('Budi')->assertSee('Rp 100.000');
-    $this->actingAs($this->hr)->get(route('nota', 'SV-NOTA1'))->assertForbidden();
-    $this->actingAs(euser('cashier', $this->b->id))->get(route('nota', 'SV-NOTA1'))->assertForbidden(); // cabang lain
-    $this->actingAs($this->cashier)->get(route('nota', 'SV-NOTA1'))->assertOk();
-    $this->actingAs($this->owner)->get(route('nota', 'TIDAK-ADA'))->assertNotFound();
+    $this->actingAs($this->owner)->get(route('service-receipt', 'SV-NOTA1'))->assertOk()->assertSee('NOTA SERVIS')->assertSee('Budi')->assertSee('Rp 100.000');
+    $this->actingAs($this->hr)->get(route('service-receipt', 'SV-NOTA1'))->assertForbidden();
+    $this->actingAs(euser('cashier', $this->b->id))->get(route('service-receipt', 'SV-NOTA1'))->assertForbidden(); // cabang lain
+    $this->actingAs($this->cashier)->get(route('service-receipt', 'SV-NOTA1'))->assertOk();
+    $this->actingAs($this->owner)->get(route('service-receipt', 'TIDAK-ADA'))->assertNotFound();
     auth()->logout();
-    $this->get(route('nota', 'SV-NOTA1'))->assertForbidden();
+    $this->get(route('service-receipt', 'SV-NOTA1'))->assertForbidden();
 });

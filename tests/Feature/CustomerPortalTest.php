@@ -117,26 +117,26 @@ it('portal: masuk dengan kode, lihat servis sendiri saja, keluar, dan tidak bisa
     ($this->ticket)('081234567890', 'Rina', 'rina@email.com');
     ($this->ticket)('081311112222', 'Budi', 'budi@email.com');
 
-    $this->get('/pelanggan')->assertRedirect('/pelanggan/masuk');
-    $this->post('/pelanggan/masuk', ['email' => 'rina@email.com'])->assertRedirect('/pelanggan/verifikasi');
-    $this->post('/pelanggan/masuk', ['email' => 'bukan-email'])->assertSessionHasErrors('email');
-    $this->post('/pelanggan/verifikasi', ['email' => 'rina@email.com', 'code' => '000000'])->assertSessionHasErrors('code');
-    $this->post('/pelanggan/verifikasi', ['email' => 'rina@email.com', 'code' => FakeOtpSender::lastCode()])->assertRedirect('/pelanggan');
+    $this->get('/customer')->assertRedirect('/customer/login');
+    $this->post('/customer/login', ['email' => 'rina@email.com'])->assertRedirect('/customer/verify');
+    $this->post('/customer/login', ['email' => 'bukan-email'])->assertSessionHasErrors('email');
+    $this->post('/customer/verify', ['email' => 'rina@email.com', 'code' => '000000'])->assertSessionHasErrors('code');
+    $this->post('/customer/verify', ['email' => 'rina@email.com', 'code' => FakeOtpSender::lastCode()])->assertRedirect('/customer');
 
-    $this->get('/pelanggan')->assertOk()->assertSee('Halo, Rina')->assertSee('SRV-PUSAT-20261117-001')->assertDontSee('SRV-PUSAT-20261117-002')->assertDontSee('Budi');
+    $this->get('/customer')->assertOk()->assertSee('Halo, Rina')->assertSee('SRV-PUSAT-20261117-001')->assertDontSee('SRV-PUSAT-20261117-002')->assertDontSee('Budi');
     $this->get('/admin')->assertRedirect(); // bukan staf: diarahkan ke login staf
 
-    $this->post('/pelanggan/keluar')->assertRedirect('/pelanggan/masuk');
-    $this->get('/pelanggan')->assertRedirect('/pelanggan/masuk');
+    $this->post('/customer/logout')->assertRedirect('/customer/login');
+    $this->get('/customer')->assertRedirect('/customer/login');
 });
 
 it('tautan lacak menampilkan status tanpa nominal atau nomor HP, dan token ngawur 404', function () {
     $t = ($this->ticket)('081234567890', 'Rina');
     $this->svc->updateProgress($t, $this->staff, 'dikerjakan', 'Mulai bongkar');
 
-    $this->get('/lacak/'.$t->public_token)->assertOk()->assertSee('Sedang dikerjakan')->assertSee('Mulai bongkar')->assertSee('iPhone 12')
+    $this->get('/track/'.$t->public_token)->assertOk()->assertSee('Sedang dikerjakan')->assertSee('Mulai bongkar')->assertSee('iPhone 12')
         ->assertDontSee('081234567890')->assertDontSee('rina@email.com')->assertDontSee('200.000')->assertDontSee('Rina');
-    $this->get('/lacak/tokenngawur')->assertNotFound();
+    $this->get('/track/tokenngawur')->assertNotFound();
 });
 
 it('komplain: dicatat dengan pelanggan dari servis, ditangani, dan masuk laporan; izin dan cabang dijaga', function () {
@@ -169,15 +169,15 @@ it('komplain: dicatat dengan pelanggan dari servis, ditangani, dan masuk laporan
 
 it('halaman Pelanggan dan Komplain terbuka untuk kasir, tertutup untuk keuangan, dan struk kasir menautkan pelanggan', function () {
     ($this->ticket)('081234567890', 'Rina');
-    $this->actingAs($this->staff)->get('/admin/pelanggan')->assertOk()->assertSee('Rina');
-    $this->actingAs($this->staff)->get('/admin/komplain')->assertOk();
+    $this->actingAs($this->staff)->get('/admin/customers')->assertOk()->assertSee('Rina');
+    $this->actingAs($this->staff)->get('/admin/complaints')->assertOk();
     $fin = User::factory()->create();
     $fin->assignRole('finance_admin');
-    $this->actingAs($fin)->get('/admin/pelanggan')->assertForbidden();
-    $this->actingAs($fin)->get('/admin/komplain')->assertForbidden();
+    $this->actingAs($fin)->get('/admin/customers')->assertForbidden();
+    $this->actingAs($fin)->get('/admin/complaints')->assertForbidden();
 
-    $nota = $this->actingAs($this->staff)->get(route('nota', ServiceTicket::first()->code));
-    $nota->assertOk()->assertSee('/lacak/'.ServiceTicket::first()->public_token, false)->assertSee('/pelanggan/masuk', false);
+    $nota = $this->actingAs($this->staff)->get(route('service-receipt', ServiceTicket::first()->code));
+    $nota->assertOk()->assertSee('/track/'.ServiceTicket::first()->public_token, false)->assertSee('/customer/login', false);
 });
 
 it('kasir: struk dengan nomor HP tertaut ke pelanggan dan tampil di portal', function () {
@@ -191,7 +191,7 @@ it('kasir: struk dengan nomor HP tertaut ke pelanggan dan tampil di portal', fun
 
     expect($sale->customer_id)->not->toBeNull()->and(Customer::find($sale->customer_id)->phone)->toBe('082111112222')
         ->and(Customer::find($byEmail->customer_id)->email)->toBe('siti@email.com');
-    $this->actingAs(Customer::find($sale->customer_id), 'customer')->get('/pelanggan')->assertOk()->assertSee($sale->receipt_no);
+    $this->actingAs(Customer::find($sale->customer_id), 'customer')->get('/customer')->assertOk()->assertSee($sale->receipt_no);
     $none = app(\App\Domain\Pos\PosService::class)->checkout($this->staff, $this->branch->id, '2026-11-05', [['product_id' => $pid, 'qty' => 1]], 'kas');
     expect($none->customer_id)->toBeNull();
 });

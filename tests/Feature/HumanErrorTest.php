@@ -95,14 +95,14 @@ it('kasir: teknisi atau HR tidak boleh jualan di kasir', function (string $role)
 })->with(['hr', 'technician']);
 
 it('kasir: Livewire klik Bayar dua kali tidak membuat dua penjualan dan tidak error', function () {
-    $lw = Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id);
+    $lw = Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id);
     $lw->call('checkout')->call('checkout');
     expect(PosSale::count())->toBe(1);
     expect(app(App\Domain\Inventory\InventoryService::class)->balance($this->branch->id, $this->case->id)->qty)->toBe(4);
 });
 
 it('kasir: tombol minus sampai nol mengeluarkan barang dari keranjang', function () {
-    $lw = Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Kasir::class)->call('add', $this->case->id)
+    $lw = Livewire\Livewire::actingAs($this->cashier)->test(App\Filament\Pages\Pos::class)->call('add', $this->case->id)
         ->call('changeQty', $this->case->id, 1)->assertSet("cart.{$this->case->id}.qty", 2)
         ->call('changeQty', $this->case->id, -1)->call('changeQty', $this->case->id, -1);
     expect($lw->get('cart'))->toBe([]);
@@ -268,7 +268,7 @@ it('kasbon: nominal nol/negatif, cicilan lebih besar dari kasbon, dan cicilan di
 
 it('karyawan (form): nama kosong, gaji negatif, PTKP ngawur, dan password pendek ditolak', function () {
     $base = ['branch_id' => $this->branch->id, 'name' => 'Supri', 'hired_on' => '2027-01-01', 'base_salary' => 3_000_000, 'fixed_allowance' => 0, 'ptkp' => 'TK/0', 'pay_method' => 'tunai', 'commission_pct' => 10];
-    $act = fn (array $over) => Livewire\Livewire::actingAs($this->hr)->test(App\Filament\Pages\Karyawan::class)
+    $act = fn (array $over) => Livewire\Livewire::actingAs($this->hr)->test(App\Filament\Pages\Employees::class)
         ->callAction(Filament\Actions\Testing\TestAction::make('tambah')->table(), array_merge($base, $over));
     $act(['name' => ''])->assertHasActionErrors(['name']);
     $act(['base_salary' => -1])->assertHasActionErrors(['base_salary']);
@@ -280,7 +280,7 @@ it('karyawan (form): nama kosong, gaji negatif, PTKP ngawur, dan password pendek
 
 it('karyawan (form): email login yang sudah dipakai tidak membuat karyawan setengah jadi', function () {
     $dupe = huser('technician', $this->branch->id);
-    Livewire\Livewire::actingAs($this->hr)->test(App\Filament\Pages\Karyawan::class)
+    Livewire\Livewire::actingAs($this->hr)->test(App\Filament\Pages\Employees::class)
         ->callAction(Filament\Actions\Testing\TestAction::make('tambah')->table(), [
             'branch_id' => $this->branch->id, 'name' => 'Supri', 'hired_on' => '2027-01-01', 'base_salary' => 3_000_000, 'fixed_allowance' => 0, 'ptkp' => 'TK/0',
             'pay_method' => 'tunai', 'commission_pct' => 10, 'create_login' => true, 'login_email' => $dupe->email, 'login_password' => 'rahasia123',
@@ -328,7 +328,7 @@ it('stok: terima barang nol/negatif dan transfer ke cabang yang sama atau lebih 
 
 it('akses: teknisi dan kasir tidak bisa membuka halaman keuangan atau SDM lewat URL', function (string $role) {
     $u = huser($role, $this->branch->id);
-    foreach (['/admin/laporan', '/admin/journals', '/admin/payroll', '/admin/karyawan', '/admin/rekonsiliasi-bank'] as $url) {
+    foreach (['/admin/reports', '/admin/journals', '/admin/payroll', '/admin/employees', '/admin/bank-reconciliation'] as $url) {
         $this->actingAs($u)->get($url)->assertForbidden();
     }
 })->with(['cashier', 'technician']);

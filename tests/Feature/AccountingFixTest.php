@@ -146,6 +146,6 @@ it('laporan refund dan komplain menghitung struk dibatalkan dan tampil di halama
     expect($r['void_count'])->toBe(1)->and($r['void_total'])->toBe(150_000)->and($r['voids'][0]['reason'])->toBe('pelanggan batal')
         ->and($r['cancels'])->toBe([])->and($r['warranty'])->toBe([]);
 
-    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Laporan::class)
+    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Reports::class)
         ->call('setReport', 'masalah')->assertSuccessful()->assertSee('Refund dan komplain')->assertSee($sale->receipt_no);
 });

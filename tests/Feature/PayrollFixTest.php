@@ -278,7 +278,7 @@ it('rincian komisi di slip cocok dengan total, termasuk karyawan tanpa gaji poko
         ->and($tickets)->toHaveCount(2)
         ->and((int) $tickets->sum('labor_fee') * 4000 / 10000)->toEqual($slip->commission);
 
-    $this->actingAs($this->finance)->get(route('slip', $run->id))->assertOk()
+    $this->actingAs($this->finance)->get(route('payslip', $run->id))->assertOk()
         ->assertSee('Rincian komisi servis (40% dari ongkos servis)')->assertSee('2 unit');
 });
 
@@ -300,7 +300,7 @@ it('potongan telat gaji pokok kecil dibatasi sebesar penghasilan, tidak negatif'
     $slip = $run->slips()->first();
 
     expect($slip->late_deduction)->toBe(100_000)->and($slip->income)->toBe(0);
-    $this->actingAs($this->finance)->get(route('slip', $run->id))->assertSee('dibatasi sebesar penghasilan');
+    $this->actingAs($this->finance)->get(route('payslip', $run->id))->assertSee('dibatasi sebesar penghasilan');
 });
 
 it('potongan telat yang lebih kecil dari penghasilan tidak diubah', function () {
@@ -320,5 +320,5 @@ it('persen komisi tersimpan di slip: mengubah persen karyawan tidak mengubah rin
     $this->emp->update(['commission_bps' => 1000]);
 
     expect($run->slips()->first()->commission_bps)->toBe(4000);
-    $this->actingAs($this->finance)->get(route('slip', $run->id))->assertSee('(40% dari ongkos servis)')->assertDontSee('(10% dari ongkos servis)');
+    $this->actingAs($this->finance)->get(route('payslip', $run->id))->assertSee('(40% dari ongkos servis)')->assertDontSee('(10% dari ongkos servis)');
 });

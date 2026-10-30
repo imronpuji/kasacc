@@ -99,6 +99,26 @@ class LoyaltyService
         }
     }
 
+    /**
+     * Retur sebagian: tarik poin yang didapat dan kembalikan poin yang dipakai, sebanding dengan bagian struk yang diretur.
+     * $returnId = id retur (satu baris per jenis per retur). Dihitung kumulatif supaya beberapa retur kecil tidak menumpuk pembulatan.
+     */
+    public function reversePartial(?Customer $customer, int $saleId, int $returnId, int $paid, int $refundBefore, int $refund, int $discount, int $discountBefore, int $discountShare, int $pointsRedeemed, ?int $userId = null): void
+    {
+        if (! $customer) {
+            return;
+        }
+        $earned = (int) LoyaltyPoint::where('source_type', 'pos_sale')->where('source_id', $saleId)->where('kind', 'earn')->value('points');
+        $earnBack = $paid > 0 ? intdiv($earned * ($refundBefore + $refund), $paid) - intdiv($earned * $refundBefore, $paid) : 0;
+        $redeemBack = $discount > 0 ? intdiv($pointsRedeemed * ($discountBefore + $discountShare), $discount) - intdiv($pointsRedeemed * $discountBefore, $discount) : 0;
+        if ($earnBack > 0) {
+            $this->add($customer, -$earnBack, 'void_earn', 'pos_return', $returnId, null, $userId);
+        }
+        if ($redeemBack > 0) {
+            $this->add($customer, $redeemBack, 'void_redeem', 'pos_return', $returnId, null, $userId);
+        }
+    }
+
     /** Koreksi manual oleh pemilik (salah catat, hadiah, dll.). Alasan wajib. Saldo tidak boleh jadi minus. */
     public function adjust(Customer $customer, int $points, string $reason, User $by): void
     {

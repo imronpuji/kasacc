@@ -26,7 +26,7 @@ class Payroll extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected string $view = 'filament.pages.servis';
+    protected string $view = 'filament.pages.table-page';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
@@ -98,7 +98,7 @@ class Payroll extends Page implements HasTable
                 ])->action(fn (array $data) => self::run(fn ($u) => app(PayrollService::class)->generate($u, (int) $data['branch_id'], (int) $data['year'], (int) $data['month'], (bool) ($data['with_thr'] ?? false)), 'Gaji sudah dihitung. Minta orang lain menyetujui.')),
             ])
             ->recordActions([
-                Action::make('slip')->label('Slip gaji')->url(fn ($record) => route('slip', $record->id))->openUrlInNewTab(),
+                Action::make('slip')->label('Slip gaji')->url(fn ($record) => route('payslip', $record->id))->openUrlInNewTab(),
                 Action::make('setujui')->label('Setujui')->requiresConfirmation()->modalHeading('Setujui gaji ini?')->modalDescription('Setelah disetujui, gaji dicatat di pembukuan dan absen bulan itu terkunci.')->modalSubmitActionLabel('Ya, setujui')->visible(fn ($record) => $record->status === 'draft' && auth()->user()->can('approve-payroll'))
                     ->schema([DatePicker::make('date')->label('Tanggal pencatatan')->helperText('Tanggal gaji ini dicatat di pembukuan.')->default(now())->required()])
                     ->action(fn (array $data, $record) => self::run(fn ($u) => app(PayrollService::class)->approve($u, $record, $data['date']), 'Gaji disetujui dan sudah dicatat di pembukuan')),

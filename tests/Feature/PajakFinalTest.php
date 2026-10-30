@@ -82,7 +82,7 @@ it('halaman pengaturan: pilih PT mengisi tarif awal PT, simpan mengubah tarif da
     $o = User::factory()->create();
     $o->assignRole('owner');
     $this->actingAs($o);
-    $c = \Livewire\Livewire::test(\App\Filament\Pages\PengaturanPajak::class)
+    $c = \Livewire\Livewire::test(\App\Filament\Pages\TaxSetup::class)
         ->fillForm(['entity' => 'pt'])->assertFormSet(['max_years' => 3, 'regime' => 'final']);
     $c->fillForm(['entity' => 'pt', 'regime' => 'final', 'final_pct' => 1, 'qris_pct' => 0.9])->call('save')->assertHasNoFormErrors();
     expect(\App\Domain\Accounting\TaxSettings::entity())->toBe('pt')->and(\App\Domain\Accounting\TaxSettings::bps())->toBe(100)->and(\App\Domain\Accounting\TaxSettings::qrisBps())->toBe(90);
@@ -94,7 +94,7 @@ it('halaman Pajak: catat dan setor lewat tombol', function () {
     $o = User::factory()->create();
     $o->assignRole('owner');
     $this->actingAs($o);
-    \Livewire\Livewire::test(\App\Filament\Pages\Pajak::class)->set('bulan', '2027-02')
+    \Livewire\Livewire::test(\App\Filament\Pages\Tax::class)->set('bulan', '2027-02')
         ->callAction(\Filament\Actions\Testing\TestAction::make('catat')->table($this->b))->assertNotified();
     expect($this->svc->accrued($this->b, 2027, 2))->toBeTrue();
 });

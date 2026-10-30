@@ -106,7 +106,7 @@ it('shows suppliers page and the per-supplier table in the payables report', fun
 
     Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Suppliers::class)
         ->assertSuccessful()->assertSee('Toko A')->assertSee('Rp2.000.000');
-    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Laporan::class)
+    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Reports::class)
         ->call('setReport', 'utang')->assertSuccessful()->assertSee('Utang per pemasok')->assertSee('Toko A');
 });
 

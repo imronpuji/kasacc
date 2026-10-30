@@ -12,12 +12,12 @@ it('semua halaman panel Filament terbuka tanpa error untuk pemilik', function (s
 
     $this->actingAs($owner)->get($path)->assertOk();
 })->with([
-    '/admin', '/admin/laporan', '/admin/journals', '/admin/accounts', '/admin/products',
-    '/admin/branches', '/admin/payment-requests', '/admin/payment-requests/create', '/admin/kasir', '/admin/servis', '/admin/stok', '/admin/rekonsiliasi-bank',
+    '/admin', '/admin/reports', '/admin/journals', '/admin/accounts', '/admin/products',
+    '/admin/branches', '/admin/payment-requests', '/admin/payment-requests/create', '/admin/pos', '/admin/service-tickets', '/admin/stock', '/admin/bank-reconciliation',
 ]);
 
 it('halaman panel menolak pengunjung yang belum login', function () {
-    $this->get('/admin/laporan')->assertRedirect();
+    $this->get('/admin/reports')->assertRedirect();
 });
 
 it('kasir: halaman Kasir bisa checkout lewat Livewire dan struk dapat dibuka', function () {
@@ -32,12 +32,12 @@ it('kasir: halaman Kasir bisa checkout lewat Livewire dan struk dapat dibuka', f
     $cashier->assignRole('cashier');
     $cashier->branches()->attach($branch->id);
 
-    Livewire\Livewire::actingAs($cashier)->test(App\Filament\Pages\Kasir::class)
+    Livewire\Livewire::actingAs($cashier)->test(App\Filament\Pages\Pos::class)
         ->call('add', $p->id)->set('cart.'.$p->id.'.qty', 2)->set('method', 'qris')->call('checkout')
         ->assertSet('cart', [])->assertSet('lastReceipt', 'POS-PUSAT-'.now()->format('Ymd').'-0001');
 
-    $this->actingAs($cashier)->get('/struk/POS-PUSAT-'.now()->format('Ymd').'-0001')->assertOk()->assertSee('Casing');
-    $this->get('/admin/kasir')->assertOk();
+    $this->actingAs($cashier)->get('/receipt/POS-PUSAT-'.now()->format('Ymd').'-0001')->assertOk()->assertSee('Casing');
+    $this->get('/admin/pos')->assertOk();
 });
 
 it('kasir: peran tanpa izin post-sales tidak bisa membuka halaman Kasir', function () {
@@ -45,7 +45,7 @@ it('kasir: peran tanpa izin post-sales tidak bisa membuka halaman Kasir', functi
     $this->seed(RoleSeeder::class);
     $u = User::factory()->create();
     $u->assignRole('approver');
-    $this->actingAs($u)->get('/admin/kasir')->assertForbidden();
+    $this->actingAs($u)->get('/admin/pos')->assertForbidden();
 });
 
 it('servis & stok: alur lewat halaman Filament (terima, selesai; beli, transfer)', function () {
@@ -58,13 +58,13 @@ it('servis & stok: alur lewat halaman Filament (terima, selesai; beli, transfer)
     $owner->assignRole('owner');
     app(App\Domain\Transactions::class)->depositCapital($b1->id, now()->toDateString(), 5_000_000, 'kas');
 
-    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Stok::class)
+    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Stock::class)
         ->callTableAction('pembelian', data: ['branch_id' => $b1->id, 'sku' => 'BAT12', 'qty' => 4, 'unit_cost' => 400_000, 'method' => 'kas'])
         ->callTableAction('transfer', data: ['from' => $b1->id, 'to' => $b2->id, 'sku' => 'BAT12', 'qty' => 1]);
     expect(App\Models\StockBalance::where('branch_id', $b1->id)->value('qty'))->toBe(3)
         ->and(App\Models\StockBalance::where('branch_id', $b2->id)->value('qty'))->toBe(1);
 
-    $lw = Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Servis::class)
+    $lw = Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\ServiceTickets::class)
         ->callTableAction('terima', data: ['branch_id' => $b1->id, 'customer_name' => 'Rina', 'device' => 'iPhone 12', 'complaint' => 'Layar pecah', 'deposit' => 100_000, 'method' => 'kas']);
     $ticket = App\Models\ServiceTicket::firstOrFail();
     $lw->callTableAction('selesai', $ticket, data: ['parts' => [['sku' => 'BAT12', 'qty' => 1, 'price' => 700_000]], 'labor' => 100_000, 'method' => 'kas']);
@@ -78,7 +78,7 @@ it('menu data master hanya untuk pemilik; kasir tidak bisa membukanya', function
     $cashier->assignRole('cashier');
 
     $this->actingAs($cashier)->get($path)->assertForbidden();
-})->with(['/admin/accounts', '/admin/branches', '/admin/products', '/admin/laporan', '/admin/stok']);
+})->with(['/admin/accounts', '/admin/branches', '/admin/products', '/admin/reports', '/admin/stock']);
 
 it('Laporan menampilkan bagian operasional (arus kas, kartu stok, buku besar) tanpa error', function () {
     $this->seed(AccountSeeder::class);
@@ -91,7 +91,7 @@ it('Laporan menampilkan bagian operasional (arus kas, kartu stok, buku besar) ta
     $owner = User::factory()->create();
     $owner->assignRole('owner');
 
-    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Laporan::class)
+    Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Reports::class)
         ->set('from', '2026-11-01')->set('to', '2026-11-30')->set('productId', $p->id)
         ->call('setReport', 'kas')->assertSee('Arus kas')->assertSee('4.500.000')
         ->call('setReport', 'penjualan')->assertSee('Penjualan di kasir per hari')
@@ -103,7 +103,7 @@ it('halaman SDM terbuka untuk pemilik, 403 untuk kasir', function () {
     $this->seed(RoleSeeder::class);
     $owner = User::factory()->create(); $owner->assignRole('owner');
     $cashier = User::factory()->create(); $cashier->assignRole('cashier');
-    foreach (['/admin/karyawan', '/admin/payroll', '/admin/persetujuan-cuti'] as $path) {
+    foreach (['/admin/employees', '/admin/payroll', '/admin/leave-approvals'] as $path) {
         $this->actingAs($owner)->get($path)->assertOk();
         $this->actingAs($cashier)->get($path)->assertForbidden();
     }
@@ -127,11 +127,11 @@ it('payroll lewat Livewire dan slip gaji dapat dibuka; karyawan hanya melihat sl
     $run = App\Models\PayrollRun::firstOrFail();
     expect($run->slips()->count())->toBe(2);
 
-    $this->actingAs($fin)->get('/slip/'.$run->id)->assertOk()->assertSee('Slip Gaji 01/2027');
-    $this->actingAs($tech)->get('/slip/'.$run->id)->assertForbidden(); // draft belum terbit
+    $this->actingAs($fin)->get('/payslip/'.$run->id)->assertOk()->assertSee('Slip Gaji 01/2027');
+    $this->actingAs($tech)->get('/payslip/'.$run->id)->assertForbidden(); // draft belum terbit
     app(App\Domain\Payroll\PayrollService::class)->approve($apr, $run, '2027-01-31');
-    $this->actingAs($tech)->get('/slip/'.$run->id)->assertOk()->assertSee('Andi')->assertDontSee('Sari');
-    $this->actingAs($other)->get('/slip/'.$run->id)->assertForbidden();
+    $this->actingAs($tech)->get('/payslip/'.$run->id)->assertOk()->assertSee('Andi')->assertDontSee('Sari');
+    $this->actingAs($other)->get('/payslip/'.$run->id)->assertForbidden();
 });
 
 it('peran HR: kelola karyawan dan hitung payroll, tapi tidak bisa bayar, setujui, atau buka laporan', function () {
@@ -140,20 +140,20 @@ it('peran HR: kelola karyawan dan hitung payroll, tapi tidak bisa bayar, setujui
     $branch = App\Models\Branch::create(['code' => 'PUSAT', 'name' => 'Pusat']);
     $hr = User::factory()->create(); $hr->assignRole('hr');
     $e = App\Models\Employee::create(['branch_id' => $branch->id, 'name' => 'Sari', 'hired_on' => '2025-01-01', 'base_salary' => 3_000_000, 'ptkp' => 'TK/0']);
-    $this->actingAs($hr)->get('/admin/karyawan')->assertOk();
+    $this->actingAs($hr)->get('/admin/employees')->assertOk();
     $this->actingAs($hr)->get('/admin/payroll')->assertOk();
-    $this->actingAs($hr)->get('/admin/laporan')->assertForbidden();
+    $this->actingAs($hr)->get('/admin/reports')->assertForbidden();
     $this->actingAs($hr)->get('/admin/journals')->assertForbidden();
-    $this->actingAs($hr)->get('/admin/persetujuan-cuti')->assertForbidden();
+    $this->actingAs($hr)->get('/admin/leave-approvals')->assertForbidden();
 
-    Livewire\Livewire::actingAs($hr)->test(App\Filament\Pages\Karyawan::class)
+    Livewire\Livewire::actingAs($hr)->test(App\Filament\Pages\Employees::class)
         ->callAction(Filament\Actions\Testing\TestAction::make('tambah')->table(), [
             'branch_id' => $branch->id, 'name' => 'Rina', 'hired_on' => '2024-01-01', 'base_salary' => 9_000_000, 'fixed_allowance' => 1_000_000,
             'ptkp' => 'TK/0', 'pay_method' => 'bank', 'commission_pct' => 10, 'create_login' => false,
         ]);
     expect(App\Models\Employee::where('name', 'Rina')->value('commission_bps'))->toBe(1000);
 
-    Livewire\Livewire::actingAs($hr)->test(App\Filament\Pages\Karyawan::class)
+    Livewire\Livewire::actingAs($hr)->test(App\Filament\Pages\Employees::class)
         ->callAction(Filament\Actions\Testing\TestAction::make('tambah')->table(), [
             'branch_id' => $branch->id, 'name' => 'Supri', 'hired_on' => '2027-01-01', 'base_salary' => 3_000_000, 'fixed_allowance' => 0,
             'ptkp' => 'TK/0', 'pay_method' => 'tunai', 'commission_pct' => 10,
@@ -183,9 +183,9 @@ it('halaman rekonsiliasi bank: impor lewat halaman dan pencocokan otomatis', fun
     $fin = User::factory()->create(); $fin->assignRole('finance_admin'); $fin->branches()->attach($branch->id);
     $cashier = User::factory()->create(); $cashier->assignRole('cashier');
     app(App\Domain\Transactions::class)->depositCapital($branch->id, '2026-11-01', 1_000_000, 'bank');
-    $this->actingAs($cashier)->get('/admin/rekonsiliasi-bank')->assertForbidden();
+    $this->actingAs($cashier)->get('/admin/bank-reconciliation')->assertForbidden();
     App\Models\BankStatementLine::create(['branch_id' => $branch->id, 'line_date' => '2026-11-02', 'description' => 'Setoran', 'amount' => 1_000_000]);
-    Livewire\Livewire::actingAs($fin)->test(App\Filament\Pages\RekonsiliasiBank::class)
+    Livewire\Livewire::actingAs($fin)->test(App\Filament\Pages\BankReconciliation::class)
         ->callAction(Filament\Actions\Testing\TestAction::make('otomatis')->table())->assertHasNoActionErrors();
     expect(App\Models\BankStatementLine::whereNotNull('journal_line_id')->count())->toBe(1);
 });

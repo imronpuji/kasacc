@@ -100,7 +100,11 @@ class PayrollService
         }
         $thr = $withThr ? $this->thrAmount($e, $year, $month) : 0;
         // THR menambah penghasilan bruto untuk PPh 21, tetapi dasar BPJS tetap dari upah ($upah).
-        $income = (int) $e->base_salary + (int) $e->fixed_allowance + $overtime + $commission + $thr - $absence - $late;
+        $earned = (int) $e->base_salary + (int) $e->fixed_allowance + $overtime + $commission + $thr;
+        // Potongan alpa dan telat tidak boleh melebihi penghasilan (karyawan komisi-saja tanpa gaji pokok), kalau tidak gajinya negatif.
+        $absence = min($absence, $earned);
+        $late = min($late, $earned - $absence);
+        $income = $earned - $absence - $late;
 
         $kesBase = min($upah, $g('kes_cap'));
         $jpBase = min($upah, $g('jp_cap'));

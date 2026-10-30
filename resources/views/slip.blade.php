@@ -28,6 +28,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 0}td.r{t
     <tr><td>Potongan alpa</td><td class="r">-{{ $rp($s->absence_deduction) }}</td></tr>
     <tr><td>Potongan terlambat</td><td class="r">-{{ $rp($s->late_deduction) }}</td></tr>
     <tr class="tot"><td>Gaji kotor (setelah potongan absen)</td><td class="r">{{ $rp($s->income) }}</td></tr>
+    @if ($s->income === 0 && ($s->absence_deduction + $s->late_deduction) > 0)<tr><td colspan="2" style="font-size:11px;color:#6b7280">Potongan alpa dan terlambat dibatasi sebesar penghasilan bulan ini.</td></tr>@endif
   </table>
   @php $tickets = app(\App\Domain\Payroll\PayrollService::class)->slipTickets($s); @endphp
   @if ($tickets->isNotEmpty())

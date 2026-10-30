@@ -173,6 +173,9 @@ class Transactions
     public function cancelService(int $branchId, string $date, int $deposit, int $fee, string $refundMethod, ?string $ticket = null): Journal
     {
         $refund = $deposit - $fee;
+        if ($refund > 0) {
+            $this->assertFunds($branchId, $date, $refundMethod, $refund);
+        }
         $lines = [['account' => self::UANG_MUKA, 'debit' => $deposit]];
         if ($fee > 0) {
             $lines[] = ['account' => self::PEND_JASA, 'credit' => $fee];

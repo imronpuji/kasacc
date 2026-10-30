@@ -140,7 +140,8 @@ class ServiceTicketService
 
     private function nextCode(int $branchId, string $date): string
     {
-        $code = Branch::findOrFail($branchId)->code;
+        // Kunci baris cabang supaya dua penerimaan bersamaan tidak mengambil nomor servis yang sama.
+        $code = Branch::lockForUpdate()->findOrFail($branchId)->code;
         $seq = ServiceTicket::where('branch_id', $branchId)->whereDate('received_on', $date)->count() + 1;
 
         return sprintf('SRV-%s-%s-%03d', $code, str_replace('-', '', $date), $seq);

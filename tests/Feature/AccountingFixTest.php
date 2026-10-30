@@ -73,3 +73,25 @@ it('bayar utang pemasok dan beli tunai ditolak kalau saldo tidak cukup', functio
     expect(fn () => $this->tx->payPayable($this->branch->id, '2026-11-03', 3_000_000, 'bank'))->toThrow(DomainException::class, 'Saldo');
     $this->tx->payPayable($this->branch->id, '2026-11-03', 1_000_000, 'bank');
 });
+
+it('DP servis batal tidak bisa dikembalikan kalau saldo kas tidak cukup', function () {
+    $this->tx->depositCapital($this->branch->id, '2026-11-01', 1_000_000, 'kas');
+    $this->tx->receiveDeposit($this->branch->id, '2026-11-02', 500_000, 'kas', 'SRV-1');
+    $this->tx->transferCash($this->branch->id, '2026-11-03', 1_400_000, 'kas', 'bank');
+
+    expect(fn () => $this->tx->cancelService($this->branch->id, '2026-11-04', 500_000, 0, 'kas', 'SRV-1'))->toThrow(DomainException::class, 'Saldo');
+    $this->tx->cancelService($this->branch->id, '2026-11-04', 500_000, 400_000, 'kas', 'SRV-1'); // refund 100 ribu cukup
+});
+
+it('nomor struk dan nomor servis urut per cabang per hari', function () {
+    $cashier = accUser('cashier', $this->branch);
+    Product::create(['sku' => 'CS1', 'name' => 'Casing', 'kind' => 'barang', 'sale_price' => 50_000]);
+    $this->tx->depositCapital($this->branch->id, '2026-11-01', 5_000_000, 'bank');
+    $this->tx->purchase($this->branch->id, '2026-11-01', 'CS1', 10, 10_000, 'bank');
+    $pos = app(\App\Domain\Pos\PosService::class);
+    $id = Product::where('sku', 'CS1')->value('id');
+
+    $a = $pos->checkout($cashier, $this->branch->id, '2026-11-05', [['product_id' => $id, 'qty' => 1]], 'kas');
+    $b = $pos->checkout($cashier, $this->branch->id, '2026-11-05', [['product_id' => $id, 'qty' => 1]], 'kas');
+    expect($a->receipt_no)->toEndWith('-0001')->and($b->receipt_no)->toEndWith('-0002');
+});

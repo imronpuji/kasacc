@@ -87,7 +87,8 @@ class PosService
 
     private function nextReceiptNo(int $branchId, string $date): string
     {
-        $code = Branch::findOrFail($branchId)->code;
+        // Kunci baris cabang supaya dua kasir yang bayar bersamaan tidak mengambil nomor struk yang sama.
+        $code = Branch::lockForUpdate()->findOrFail($branchId)->code;
         $seq = PosSale::where('branch_id', $branchId)->whereDate('sold_on', $date)->count() + 1;
 
         return sprintf('POS-%s-%s-%04d', $code, str_replace('-', '', $date), $seq);

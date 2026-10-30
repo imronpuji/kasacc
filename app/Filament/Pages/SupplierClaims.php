@@ -66,7 +66,7 @@ class SupplierClaims extends Page implements HasTable
         $user = auth()->user();
 
         return $table
-            ->query(fn (): Builder => SupplierClaim::query()->with(['branch', 'supplier', 'product', 'sale'])
+            ->query(fn (): Builder => SupplierClaim::query()->with(['branch', 'supplier', 'product', 'sale', 'ticket'])
                 ->when(! $user->hasRole('owner'), fn ($q) => $q->whereIn('branch_id', $user->branches()->pluck('branches.id')))
                 ->latest('id'))
             ->filters([SelectFilter::make('status')->label('Status')->options(self::STATUS)->default('open')])
@@ -80,7 +80,7 @@ class SupplierClaims extends Page implements HasTable
                 TextColumn::make('cost')->label('Nilai')->alignEnd()->state(fn (SupplierClaim $r) => 'Rp'.number_format($r->cost, 0, ',', '.')),
                 TextColumn::make('supplier.name')->label('Pemasok')->placeholder('Belum dipilih'),
                 TextColumn::make('reason')->label('Kerusakan')->limit(40)->tooltip(fn (SupplierClaim $r) => $r->reason),
-                TextColumn::make('sale.receipt_no')->label('Struk')->placeholder('-'),
+                TextColumn::make('source')->label('Asal')->state(fn (SupplierClaim $r) => $r->sale?->receipt_no ?? ($r->ticket ? 'Garansi '.$r->ticket->code : 'Stok')),
                 TextColumn::make('status')->label('Status')->badge()->formatStateUsing(fn (string $state) => self::STATUS[$state] ?? $state)
                     ->color(fn (string $state) => ['open' => 'warning', 'replaced' => 'success', 'refunded' => 'success', 'rejected' => 'danger'][$state] ?? 'gray'),
             ])

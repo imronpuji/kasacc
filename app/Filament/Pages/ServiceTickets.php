@@ -199,9 +199,18 @@ class ServiceTickets extends Page implements HasTable
                     ->schema([
                         Select::make('sku')->label('Sparepart pengganti')->required()->searchable()->placeholder('Pilih sparepart')->options(fn (ServiceTicket $record) => self::stockOptions($record->branch_id)),
                         TextInput::make('qty')->label('Jumlah')->numeric()->inputMode('numeric')->minValue(1)->default(1)->required(),
+                        \Filament\Forms\Components\Toggle::make('to_supplier')->label('Sparepart lama rusak karena pemasok, tagih ke pemasok juga')->live()
+                            ->visible(fn () => auth()->user()->can('post-purchases'))
+                            ->helperText('Biaya garansi ini akan masuk daftar klaim ke pemasok (menu Klaim ke pemasok) sampai pemasok mengganti atau mengembalikan uang.'),
+                        \Filament\Forms\Components\TextInput::make('claim_reason')->label('Kerusakan sparepart')->maxLength(200)->placeholder('Contoh: layar bergaris setelah 2 minggu')
+                            ->visible(fn ($get) => (bool) $get('to_supplier'))->required(fn ($get) => (bool) $get('to_supplier')),
+                        Select::make('claim_supplier')->label('Pemasok (boleh dipilih nanti)')->placeholder('Pilih pemasok')->searchable()
+                            ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->visible(fn ($get) => (bool) $get('to_supplier')),
                     ])
                     ->action(fn (ServiceTicket $r, array $data) => self::run(
-                        fn () => app(ServiceTicketService::class)->claimWarranty($r, auth()->user(), now()->toDateString(), $data['sku'], (int) $data['qty']),
+                        fn () => app(ServiceTicketService::class)->claimWarranty($r, auth()->user(), now()->toDateString(), $data['sku'], (int) $data['qty'],
+                            ! empty($data['to_supplier']) ? ['reason' => $data['claim_reason'] ?? '', 'supplier_id' => ! empty($data['claim_supplier']) ? (int) $data['claim_supplier'] : null] : null),
                         'Garansi dicatat',
                         fn ($t) => "Garansi servis {$t->code} sudah dicatat dan stok sparepart berkurang.",
                     )),

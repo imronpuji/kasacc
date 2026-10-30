@@ -7,6 +7,7 @@ use App\Domain\Transactions;
 use App\Models\Account;
 use App\Models\Branch;
 use App\Models\JournalLine;
+use App\Models\Product;
 use App\Models\ServiceTicket;
 use App\Models\User;
 use DomainException;
@@ -23,7 +24,7 @@ class ServiceTicketService
         'siap_diambil' => 'Siap diambil',
     ];
 
-    public function __construct(private Transactions $transactions, private CustomerService $customers, private \App\Domain\Loyalty\LoyaltyService $loyalty, private \App\Domain\Customer\CustomerNotifier $notifier)
+    public function __construct(private Transactions $transactions, private CustomerService $customers, private \App\Domain\Loyalty\LoyaltyService $loyalty, private \App\Domain\Customer\CustomerNotifier $notifier, private \App\Domain\Purchasing\SupplierClaimService $supplierClaims)
     {
     }
 
@@ -187,11 +188,12 @@ class ServiceTicketService
     }
 
     /** Klaim garansi: sparepart pengganti keluar dari stok sebagai beban garansi, bukan pendapatan. */
-    public function claimWarranty(ServiceTicket $ticket, User $user, string $date, string $sku, int $qty = 1): ServiceTicket
+    /** $toSupplier = ['reason' => ..., 'supplier_id' => ...] kalau sparepart yang gagal juga ditagihkan ke pemasok. */
+    public function claimWarranty(ServiceTicket $ticket, User $user, string $date, string $sku, int $qty = 1, ?array $toSupplier = null): ServiceTicket
     {
         $this->authorize($user, $ticket->branch_id);
 
-        return DB::transaction(function () use ($ticket, $date, $sku, $qty) {
+        return DB::transaction(function () use ($ticket, $user, $date, $sku, $qty, $toSupplier) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'selesai') {
                 throw new DomainException('Garansi hanya bisa dicatat untuk servis yang sudah selesai.');
@@ -201,7 +203,13 @@ class ServiceTicketService
             $accountId = Account::where('code', Transactions::BEBAN_GARANSI)->value('id');
             $cost = (int) JournalLine::where('journal_id', $journal->id)->where('account_id', $accountId)->sum('debit');
             $ticket->update(['warranty_cost' => $ticket->warranty_cost + $cost]);
-            DB::table('warranty_claims')->insert(['service_ticket_id' => $ticket->id, 'claimed_on' => $date, 'cost' => $cost, 'created_at' => now(), 'updated_at' => now()]);
+            $warrantyId = DB::table('warranty_claims')->insertGetId([
+                'service_ticket_id' => $ticket->id, 'claimed_on' => $date, 'cost' => $cost, 'product_id' => Product::where('sku', $sku)->value('id'), 'qty' => $qty,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            if ($toSupplier) {
+                $this->supplierClaims->fromWarranty($user, $warrantyId, (string) ($toSupplier['reason'] ?? ''), $toSupplier['supplier_id'] ?? null);
+            }
 
             return $ticket;
         });

@@ -31,4 +31,9 @@ class SupplierClaim extends Model
     {
         return $this->belongsTo(PosSale::class, 'pos_sale_id');
     }
+
+    public function ticket(): BelongsTo
+    {
+        return $this->belongsTo(ServiceTicket::class, 'service_ticket_id');
+    }
 }

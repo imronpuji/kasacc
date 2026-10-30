@@ -223,6 +223,15 @@ class Transactions
         ], 'purchase', $description, $reference, $supplierId);
     }
 
+    /** Klaim garansi servis ditagihkan ke pemasok: biaya garansi yang sudah dibukukan dipulihkan ke "barang klaim di pemasok". */
+    public function moveWarrantyToClaim(int $branchId, string $date, int $cost, string $description, ?string $reference = null, ?int $supplierId = null): Journal
+    {
+        return $this->post($branchId, $date, [
+            ['account' => $this->ensure(self::BARANG_KLAIM), 'debit' => $cost],
+            ['account' => self::BEBAN_GARANSI, 'credit' => $cost],
+        ], 'purchase', $description, $reference, $supplierId);
+    }
+
     /**
      * Klaim selesai. $outcome: replaced (barang baru masuk stok), refunded (uang kembali $refund lewat $method,
      * selisih dengan nilai barang jadi kerugian), rejected (seluruh nilai jadi kerugian).

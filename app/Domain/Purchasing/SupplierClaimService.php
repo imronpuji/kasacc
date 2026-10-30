@@ -64,6 +64,42 @@ class SupplierClaimService
         return $this->create($user, $sale->branch_id, $date, $productId, $qty, $cost, $reason, null, $sale->id, $sale->receipt_no);
     }
 
+    /**
+     * Tagihkan klaim garansi servis ke pemasok (sparepart yang gagal pakai). Nilainya sama dengan biaya garansi yang
+     * sudah dicatat; tidak ada stok yang keluar lagi. Satu klaim garansi hanya bisa ditagihkan sekali.
+     */
+    public function fromWarranty(User $user, int $warrantyClaimId, string $reason, ?int $supplierId = null): SupplierClaim
+    {
+        $this->assertReason($reason);
+        $this->assertSupplier($supplierId);
+
+        return DB::transaction(function () use ($user, $warrantyClaimId, $reason, $supplierId) {
+            $w = DB::table('warranty_claims')->where('id', $warrantyClaimId)->lockForUpdate()->first() ?? throw new DomainException('Klaim garansi tidak ditemukan.');
+            $ticket = \App\Models\ServiceTicket::findOrFail($w->service_ticket_id);
+            $this->authorize($user, $ticket->branch_id);
+            if (! $w->product_id || ! $w->qty) {
+                throw new DomainException('Klaim garansi lama ini tidak punya data barang, jadi tidak bisa ditagihkan ke pemasok.');
+            }
+            if (SupplierClaim::where('warranty_claim_id', $warrantyClaimId)->exists()) {
+                throw new DomainException('Klaim garansi ini sudah ditagihkan ke pemasok.');
+            }
+            if ((int) $w->cost <= 0) {
+                throw new DomainException('Biaya garansi ini nol, tidak ada yang bisa ditagihkan.');
+            }
+
+            $claim = SupplierClaim::create([
+                'branch_id' => $ticket->branch_id, 'supplier_id' => $supplierId, 'product_id' => $w->product_id, 'qty' => $w->qty, 'cost' => (int) $w->cost,
+                'status' => 'open', 'reason' => mb_substr(trim($reason), 0, 200), 'service_ticket_id' => $ticket->id, 'warranty_claim_id' => $warrantyClaimId,
+                'complaint_id' => \App\Models\Complaint::where('service_ticket_id', $ticket->id)->latest('id')->value('id'),
+                'opened_on' => now()->toDateString(), 'created_by' => $user->id,
+            ]);
+            $journal = $this->transactions->moveWarrantyToClaim($ticket->branch_id, now()->toDateString(), (int) $w->cost, 'Klaim pemasok KLAIM-'.$claim->id, $ticket->code, $supplierId);
+            $claim->update(['claim_journal_id' => $journal->id]);
+
+            return $claim;
+        });
+    }
+
     private function create(User $user, int $branchId, string $date, int $productId, int $qty, int $cost, string $reason, ?int $supplierId, ?int $saleId, ?string $reference = null): SupplierClaim
     {
         $claim = SupplierClaim::create([

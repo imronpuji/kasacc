@@ -224,6 +224,7 @@ it('payroll: hitung tanpa absensi, hitung ulang saat sudah disetujui, bayar sebe
     expect(fn () => $this->payroll->pay($this->fin, $run, '2027-01-31'))->toThrow(DomainException::class, 'disetujui dulu');
     expect(fn () => $this->payroll->approve($this->hr, $run, '2027-01-31'))->toThrow(DomainException::class);
     $this->payroll->approve($this->boss, $run, '2027-01-31');
+    app(App\Domain\Transactions::class)->depositCapital($this->branch->id, '2027-01-01', 10_000_000, 'bank'); // gaji butuh saldo bank
     expect(fn () => $this->payroll->generate($this->hr, $this->branch->id, 2027, 1))->toThrow(DomainException::class, 'sudah ada');
     expect(fn () => $this->payroll->approve($this->boss, $run->fresh(), '2027-01-31'))->toThrow(DomainException::class, 'masih konsep');
     $this->payroll->pay($this->fin, $run->fresh(), '2027-01-31');

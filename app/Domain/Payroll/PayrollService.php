@@ -4,6 +4,7 @@ namespace App\Domain\Payroll;
 
 use App\Domain\Accounting\LedgerService;
 use App\Domain\Accounting\MoneyAccounts;
+use App\Domain\Transactions;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeAdvance;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 class PayrollService
 {
-    public function __construct(private LedgerService $ledger, private TaxService $tax, private HrService $hr)
+    public function __construct(private LedgerService $ledger, private TaxService $tax, private HrService $hr, private Transactions $transactions)
     {
     }
 
@@ -257,6 +258,15 @@ class PayrollService
             $tunai = (int) $slips->where('pay_method', '<>', 'bank')->sum('net_pay');
             $bpjs = (int) $slips->sum(fn ($s) => $s->emp_kes + $s->emp_jht + $s->emp_jp + $s->er_kes + $s->er_jht + $s->er_jp + $s->er_jkk + $s->er_jkm);
             $pph = (int) $slips->sum('pph21');
+
+            // Uang keluar harus ada saldonya; kalau bank dan kas ternyata satu akun, jumlahnya digabung.
+            $fromBank = $bank + $bpjs + $pph;
+            if (MoneyAccounts::resolve($bankSource) === MoneyAccounts::resolve($cashSource)) {
+                $this->transactions->assertFunds($run->branch_id, $date, $bankSource, $fromBank + $tunai);
+            } else {
+                $this->transactions->assertFunds($run->branch_id, $date, $bankSource, $fromBank);
+                $this->transactions->assertFunds($run->branch_id, $date, $cashSource, $tunai);
+            }
 
             $lines = array_values(array_filter([
                 ['account' => '2-1200', 'debit' => $bank + $tunai],

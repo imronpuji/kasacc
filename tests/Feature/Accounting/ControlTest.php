@@ -161,9 +161,11 @@ it('K6: pengaju tidak boleh menyetujui pembayaran sendiri dan harus punya wewena
 
     expect(Journal::where('source', 'purchase')->count())->toBe(1); // hanya pembelian; belum ada pembayaran
 
+    // Pembayaran utang butuh saldo bank: modal disetor dulu (aturan cek saldo baru).
+    app(\App\Domain\Transactions::class)->depositCapital($this->branch->id, '2026-11-01', 10_000_000, 'bank');
     $approved = $approvals->approve($request, $approver, '2026-11-08');
     expect($approved->status)->toBe('approved')->and($approved->approved_by)->toBe($approver->id);
-    expect(Journal::count())->toBe(2);
+    expect(Journal::count())->toBe(3);
     expect(fn () => $approvals->approve($request->fresh(), $approver, '2026-11-08'))->toThrow(DomainException::class, 'sudah diproses');
 });
 

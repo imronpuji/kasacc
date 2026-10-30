@@ -51,11 +51,15 @@ class PaymentApprovalService
             throw new DomainException('Anda tidak berwenang menyetujui pembayaran di cabang ini. Minta pemilik atau penyetuju yang ditunjuk.');
         }
 
-        if ((int) $request->amount > app(OpsReportService::class)->payables($request->branch_id, now()->addYears(10)->toDateString())) {
-            throw new DomainException('Sisa utang sudah berkurang, jadi jumlah pengajuan terlalu besar. Tolak lalu ajukan lagi dengan jumlah baru.');
-        }
-
         return DB::transaction(function () use ($request, $approver, $date) {
+            // Muat ulang dengan kunci baris supaya dua penyetuju bersamaan tidak membayar pengajuan yang sama dua kali.
+            $request = PaymentRequest::lockForUpdate()->findOrFail($request->id);
+            if ($request->status !== 'pending') {
+                throw new DomainException('Pengajuan ini sudah diproses sebelumnya, tidak perlu diulang.');
+            }
+            if ((int) $request->amount > app(OpsReportService::class)->payables($request->branch_id, now()->addYears(10)->toDateString())) {
+                throw new DomainException('Sisa utang sudah berkurang, jadi jumlah pengajuan terlalu besar. Tolak lalu ajukan lagi dengan jumlah baru.');
+            }
             $journal = $this->transactions->payPayable($request->branch_id, $date, (int) $request->amount, $request->method);
             $request->update(['status' => 'approved', 'approved_by' => $approver->id, 'journal_id' => $journal->id]);
 
@@ -77,11 +81,18 @@ class PaymentApprovalService
         }
 
         $reason = trim((string) $reason);
-        $request->update([
-            'status' => 'rejected', 'approved_by' => $rejecter->id,
-            'description' => $reason !== '' ? mb_substr(trim($request->description.' (Ditolak: '.$reason.')'), 0, 250) : $request->description,
-        ]);
 
-        return $request;
+        return DB::transaction(function () use ($request, $rejecter, $reason) {
+            $request = PaymentRequest::lockForUpdate()->findOrFail($request->id);
+            if ($request->status !== 'pending') {
+                throw new DomainException('Pengajuan ini sudah diproses.');
+            }
+            $request->update([
+                'status' => 'rejected', 'approved_by' => $rejecter->id,
+                'description' => $reason !== '' ? mb_substr(trim($request->description.' (Ditolak: '.$reason.')'), 0, 250) : $request->description,
+            ]);
+
+            return $request;
+        });
     }
 }

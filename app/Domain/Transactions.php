@@ -85,6 +85,7 @@ class Transactions
     {
         return DB::transaction(function () use ($branchId, $date, $sku, $qty, $unitCost, $method) {
             $total = $qty * $unitCost;
+            $this->assertFunds($branchId, $date, $method, $total);
             $this->inventory->receive($branchId, $this->productId($sku), $qty, $total, $date, 'pembelian');
 
             return $this->post($branchId, $date, [
@@ -109,6 +110,8 @@ class Transactions
 
     public function payPayable(int $branchId, string $date, int $amount, string $method): Journal
     {
+        $this->assertFunds($branchId, $date, $method, $amount);
+
         return $this->post($branchId, $date, [
             ['account' => self::UTANG, 'debit' => $amount],
             ['account' => $this->moneyAccount($method), 'credit' => $amount],
@@ -212,7 +215,7 @@ class Transactions
     }
 
     /** Tolak uang keluar kalau saldo kas/bank cabang itu sampai tanggal tersebut tidak cukup. */
-    private function assertFunds(int $branchId, string $date, string $method, int $amount): void
+    public function assertFunds(int $branchId, string $date, string $method, int $amount): void
     {
         if (in_array($method, ['kredit', 'utang'], true) || $amount <= 0) {
             return;

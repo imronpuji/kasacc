@@ -99,26 +99,30 @@ class LedgerService
     /** Koreksi = jurnal baru dengan sisi dibalik; jurnal asli tidak disentuh. */
     public function reverse(Journal $journal, string $date, ?int $userId = null): Journal
     {
-        if (Journal::where('reversal_of', $journal->id)->exists()) {
-            throw new InvalidJournalException('Catatan ini sudah pernah dibatalkan sebelumnya.');
-        }
+        return DB::transaction(function () use ($journal, $date, $userId) {
+            // Kunci jurnal asli supaya dua klik bersamaan tidak sama-sama lolos cek "sudah dibatalkan".
+            $journal = Journal::lockForUpdate()->findOrFail($journal->id);
+            if (Journal::where('reversal_of', $journal->id)->exists()) {
+                throw new InvalidJournalException('Catatan ini sudah pernah dibatalkan sebelumnya.');
+            }
 
-        $lines = $journal->lines()->with('account')->get()->map(fn ($l) => [
-            'account' => $l->account->code,
-            'debit' => (int) $l->credit,
-            'credit' => (int) $l->debit,
-        ])->all();
+            $lines = $journal->lines()->with('account')->get()->map(fn ($l) => [
+                'account' => $l->account->code,
+                'debit' => (int) $l->credit,
+                'credit' => (int) $l->debit,
+            ])->all();
 
-        return $this->post([
-            'branch_id' => $journal->branch_id,
-            'date' => $date,
-            'lines' => $lines,
-            'reference' => $journal->reference,
-            'source' => 'reversal',
-            'description' => 'Pembalik jurnal #'.$journal->id,
-            'created_by' => $userId,
-            'reversal_of' => $journal->id,
-        ]);
+            return $this->post([
+                'branch_id' => $journal->branch_id,
+                'date' => $date,
+                'lines' => $lines,
+                'reference' => $journal->reference,
+                'source' => 'reversal',
+                'description' => 'Pembalik jurnal #'.$journal->id,
+                'created_by' => $userId,
+                'reversal_of' => $journal->id,
+            ]);
+        });
     }
 
     public function assertPeriodOpen(CarbonImmutable $date): void

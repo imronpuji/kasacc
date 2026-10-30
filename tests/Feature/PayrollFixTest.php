@@ -250,3 +250,16 @@ it('R2 karyawan dengan tanggal berhenti di masa depan masih boleh absen, setelah
     $this->emp->update(['resigned_on' => $svc->now()->subDay()->toDateString()]);
     expect(fn () => $svc->employeeFor($this->tech))->toThrow(DomainException::class, 'nonaktif');
 });
+
+it('gaji tidak bisa dibayar kalau saldo bank cabang itu tidak cukup', function () {
+    $poor = Branch::create(['code' => 'CAB2', 'name' => 'Cabang Dua']);
+    $e = Employee::create([
+        'branch_id' => $poor->id, 'name' => 'Dewi', 'position' => 'Kasir', 'hired_on' => '2025-01-01',
+        'base_salary' => 4_000_000, 'fixed_allowance' => 0, 'ptkp' => 'TK/0', 'pay_method' => 'bank', 'commission_bps' => 0,
+    ]);
+    $this->hr->recordAttendance($this->finance, $e, 2027, 1, ['present' => 26, 'leave' => 0, 'sick' => 0, 'absent' => 0, 'late' => 0, 'overtime_hours' => 0]);
+    $run = $this->pay->approve($this->approver, $this->pay->generate($this->finance, $poor->id, 2027, 1), '2027-01-31');
+
+    expect(fn () => $this->pay->pay($this->finance, $run, '2027-02-01'))->toThrow(DomainException::class, 'Saldo');
+    expect($run->fresh()->status)->toBe('disetujui');
+});

@@ -73,7 +73,7 @@ it('stok kurang: seluruh checkout dibatalkan tanpa struk, jurnal, atau perubahan
 it('menolak keranjang kosong, jumlah tidak valid, dan metode bayar asing', function () {
     expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [], 'kas'))->toThrow(DomainException::class, 'kosong');
     expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 0]], 'kas'))->toThrow(DomainException::class, 'tidak valid');
-    expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kredit'))->toThrow(DomainException::class, 'Metode');
+    expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kredit'))->toThrow(DomainException::class, 'Cara bayar');
     expect(PosSale::count())->toBe(0);
 });
 
@@ -83,7 +83,7 @@ it('hanya kasir berwenang dan hanya di cabang yang ia punya aksesnya', function 
     $tech->branches()->attach($this->branch->id);
 
     expect(fn () => $this->pos->checkout($tech, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kas'))
-        ->toThrow(DomainException::class, 'tidak berwenang');
+        ->toThrow(DomainException::class, 'tidak punya izin');
     expect(fn () => $this->pos->checkout($this->cashier, $this->other->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kas'))
         ->toThrow(DomainException::class, 'akses');
     expect(PosSale::count())->toBe(0);

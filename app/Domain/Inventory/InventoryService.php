@@ -12,7 +12,7 @@ class InventoryService
     public function receive(int $branchId, int $productId, int $qty, int $totalCost, string $date, string $reason, ?string $reference = null): void
     {
         if ($qty <= 0 || $totalCost < 0) {
-            throw new \InvalidArgumentException('Jumlah harus lebih dari nol dan biaya tidak boleh negatif.');
+            throw new \InvalidArgumentException('Jumlah harus lebih dari 0 dan harga tidak boleh minus.');
         }
 
         DB::transaction(function () use ($branchId, $productId, $qty, $totalCost, $date, $reason, $reference) {
@@ -28,13 +28,14 @@ class InventoryService
     public function issue(int $branchId, int $productId, int $qty, string $date, string $reason, ?string $reference = null): int
     {
         if ($qty <= 0) {
-            throw new \InvalidArgumentException('Jumlah harus lebih dari nol.');
+            throw new \InvalidArgumentException('Jumlah harus lebih dari 0.');
         }
 
         return DB::transaction(function () use ($branchId, $productId, $qty, $date, $reason, $reference) {
             $balance = $this->lockedBalance($branchId, $productId);
             if ($qty > $balance->qty) {
-                throw new InsufficientStockException("Stok tidak cukup: tersedia {$balance->qty}, diminta {$qty}.");
+                $name = \App\Models\Product::whereKey($productId)->value('name') ?? 'barang ini';
+                throw new InsufficientStockException("Stok {$name} tidak cukup: sisa {$balance->qty}, diminta {$qty}. Kurangi jumlah atau tambah stok lewat menu Stok dan pembelian.");
             }
 
             // Unit terakhir mengambil sisa nilai agar tidak ada selisih pembulatan.

@@ -20,6 +20,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Seluruh teks bawaan (tombol, pesan, tanggal) memakai bahasa Indonesia.
+        $this->app->setLocale('id');
+        \Carbon\Carbon::setLocale('id');
+
         // Di produksi: migrate:fresh, db:wipe, migrate:reset dan sejenisnya ditolak supaya data klien tidak terhapus.
         DB::prohibitDestructiveCommands($this->app->isProduction());
     }

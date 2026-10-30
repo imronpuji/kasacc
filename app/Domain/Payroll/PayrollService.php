@@ -3,6 +3,7 @@
 namespace App\Domain\Payroll;
 
 use App\Domain\Accounting\LedgerService;
+use App\Domain\Accounting\MoneyAccounts;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeAdvance;
@@ -28,7 +29,7 @@ class PayrollService
         return DB::transaction(function () use ($user, $branchId, $year, $month) {
             $run = PayrollRun::where('branch_id', $branchId)->where('year', $year)->where('month', $month)->where('status', '<>', 'batal')->first();
             if ($run && $run->status !== 'draft') {
-                throw new DomainException('Payroll bulan ini sudah ada dan berstatus '.$run->status.'.');
+                throw new DomainException('Gaji bulan ini sudah ada dan berstatus '.($run->status === 'disetujui' ? 'disetujui' : 'sudah dibayar').'. Minta penyetuju membatalkannya dulu kalau perlu dihitung ulang.');
             }
             $run ??= PayrollRun::create(['branch_id' => $branchId, 'year' => $year, 'month' => $month, 'created_by' => $user->id]);
             $run->slips()->delete();
@@ -36,7 +37,7 @@ class PayrollService
             $monthEnd = CarbonImmutable::create($year, $month, 1)->endOfMonth();
             $employees = Employee::where('branch_id', $branchId)->where('is_active', true)->whereDate('hired_on', '<=', $monthEnd)->orderBy('id')->get();
             if ($employees->isEmpty()) {
-                throw new DomainException('Belum ada karyawan aktif di cabang ini.');
+                throw new DomainException('Belum ada karyawan aktif di cabang ini. Tambahkan karyawan di menu Karyawan dan absensi, atau pilih cabang lain.');
             }
             foreach ($employees as $e) {
                 $run->slips()->create($this->computeSlip($e, $year, $month));
@@ -50,7 +51,7 @@ class PayrollService
     {
         $att = Attendance::where('employee_id', $e->id)->where('year', $year)->where('month', $month)->first();
         if (! $att) {
-            throw new DomainException("Absensi {$e->name} bulan ini belum diisi.");
+            throw new DomainException("Absensi {$e->name} bulan {$month}/{$year} belum diisi. Isi dulu lewat menu Karyawan dan absensi, tombol Isi absen bulan ini.");
         }
         $category = $this->tax->category($e->ptkp);
         $g = fn (string $k) => PayrollSettings::get($k);
@@ -81,10 +82,18 @@ class PayrollService
             'er_jkk' => $pct($upah, $g('jkk')), 'er_jkm' => $pct($upah, $g('jkm')),
             'pay_method' => $e->pay_method, 'tax_category' => $category,
         ];
+        if (! $g('bpjs_on')) {
+            foreach (['emp_kes', 'emp_jht', 'emp_jp', 'er_kes', 'er_jht', 'er_jp', 'er_jkk', 'er_jkm'] as $k) {
+                $slip[$k] = 0;
+            }
+        }
         $taxGross = $income + $slip['er_kes'] + $slip['er_jkk'] + $slip['er_jkm'];
         $slip['tax_gross'] = $taxGross;
 
-        if ($month < 12) {
+        if (! $g('pph21_on')) {
+            $slip['ter_bps'] = 0;
+            $slip['pph21'] = 0;
+        } elseif ($month < 12) {
             $slip['ter_bps'] = $this->tax->terBps($category, $taxGross);
             $slip['pph21'] = $pct($taxGross, $slip['ter_bps']);
         } else {
@@ -124,10 +133,10 @@ class PayrollService
     {
         $this->hr->authorize($user, 'approve-payroll');
         if ($run->created_by === $user->id) {
-            throw new DomainException('Pembuat payroll tidak boleh menyetujui payroll sendiri.');
+            throw new DomainException('Gaji ini tidak bisa Anda setujui sendiri karena Anda yang menghitungnya. Minta orang lain menyetujuinya.');
         }
         if ($run->status !== 'draft') {
-            throw new DomainException('Hanya payroll berstatus draft yang bisa disetujui.');
+            throw new DomainException('Hanya gaji yang masih konsep yang bisa disetujui. Muat ulang halaman untuk melihat status terbaru.');
         }
 
         return DB::transaction(function () use ($user, $run, $date) {
@@ -179,17 +188,17 @@ class PayrollService
         });
     }
 
-    public function pay(User $user, PayrollRun $run, string $date): PayrollRun
+    public function pay(User $user, PayrollRun $run, string $date, string $bankSource = 'bank', string $cashSource = 'kas'): PayrollRun
     {
         $this->hr->authorize($user, 'pay-payroll');
         if ($run->status === 'dibayar') {
-            throw new DomainException('Payroll ini sudah dibayar.');
+            throw new DomainException('Gaji ini sudah dibayar. Tidak perlu dibayar lagi.');
         }
         if ($run->status !== 'disetujui') {
-            throw new DomainException('Payroll harus disetujui dulu sebelum dibayar.');
+            throw new DomainException('Gaji harus disetujui dulu sebelum dibayar. Minta penyetuju menyetujuinya.');
         }
 
-        return DB::transaction(function () use ($user, $run, $date) {
+        return DB::transaction(function () use ($user, $run, $date, $bankSource, $cashSource) {
             $slips = $run->slips;
             $bank = (int) $slips->where('pay_method', 'bank')->sum('net_pay');
             $tunai = (int) $slips->where('pay_method', '<>', 'bank')->sum('net_pay');
@@ -200,8 +209,8 @@ class PayrollService
                 ['account' => '2-1200', 'debit' => $bank + $tunai],
                 ['account' => '2-1300', 'debit' => $bpjs],
                 ['account' => '2-1500', 'debit' => $pph],
-                ['account' => '1-1110', 'credit' => $bank + $bpjs + $pph],
-                ['account' => '1-1100', 'credit' => $tunai],
+                ['account' => MoneyAccounts::resolve($bankSource), 'credit' => $bank + $bpjs + $pph],
+                ['account' => MoneyAccounts::resolve($cashSource), 'credit' => $tunai],
             ], fn ($l) => ($l['debit'] ?? $l['credit']) > 0));
 
             $journal = $this->ledger->post([
@@ -219,10 +228,10 @@ class PayrollService
     {
         $this->hr->authorize($user, 'approve-payroll');
         if ($run->status === 'dibayar') {
-            throw new DomainException('Payroll yang sudah dibayar tidak bisa dibatalkan.');
+            throw new DomainException('Gaji yang sudah dibayar tidak bisa dibatalkan.');
         }
         if ($run->status === 'batal') {
-            throw new DomainException('Payroll ini sudah dibatalkan.');
+            throw new DomainException('Gaji ini sudah dibatalkan sebelumnya.');
         }
 
         return DB::transaction(function () use ($user, $run, $date) {

@@ -51,7 +51,7 @@ it('batal: biaya cek jadi pendapatan, sisa DP dikembalikan', function () {
 
 it('batal: biaya cek tidak boleh melebihi DP', function () {
     $t = $this->svc->receive($this->staff, $this->branch->id, '2026-11-17', ['customer_name' => 'Rina', 'device' => 'iPhone 12'], 200_000);
-    expect(fn () => $this->svc->cancel($t, $this->staff, '2026-11-19', 250_000))->toThrow(DomainException::class, 'melebihi');
+    expect(fn () => $this->svc->cancel($t, $this->staff, '2026-11-19', 250_000))->toThrow(DomainException::class, 'lebih besar dari DP');
 });
 
 it('garansi: biaya sparepart tercatat di tiket dan stok berkurang', function () {
@@ -66,5 +66,5 @@ it('servis ditolak untuk user tanpa wewenang atau cabang lain', function () {
     $other = Branch::create(['code' => 'BDG', 'name' => 'Bandung']);
     expect(fn () => $this->svc->receive($this->staff, $other->id, '2026-11-17', ['customer_name' => 'X', 'device' => 'Y']))->toThrow(DomainException::class, 'akses');
     $fin = User::factory()->create(); $fin->assignRole('finance_admin'); $fin->branches()->attach($this->branch->id);
-    expect(fn () => $this->svc->receive($fin, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'device' => 'Y']))->toThrow(DomainException::class, 'tidak berwenang');
+    expect(fn () => $this->svc->receive($fin, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'device' => 'Y']))->toThrow(DomainException::class, 'tidak punya izin');
 });

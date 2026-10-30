@@ -31,7 +31,7 @@ class OpsReportService
     /** Arus kas (metode langsung): kas + bank, saldo awal, masuk/keluar per sumber jurnal, saldo akhir. */
     public function cashFlow(?int $branchId, string $from, string $to): array
     {
-        $cashIds = DB::table('accounts')->whereIn('code', ['1-1100', '1-1110'])->pluck('id');
+        $cashIds = DB::table('accounts')->whereIn('code', \App\Domain\Accounting\MoneyAccounts::codes())->pluck('id');
         $base = fn () => DB::table('journal_lines as l')->join('journals as j', 'j.id', '=', 'l.journal_id')
             ->whereIn('l.account_id', $cashIds)->when($branchId, fn ($q) => $q->where('j.branch_id', $branchId));
 

@@ -59,7 +59,7 @@ beforeEach(function () {
 it('kasir: jual lebih banyak dari stok ditolak dan tidak ada yang tercatat', function () {
     $snap = ($this->before)();
     expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 6]], 'kas'))
-        ->toThrow(InsufficientStockException::class, 'Stok tidak cukup');
+        ->toThrow(InsufficientStockException::class, 'tidak cukup');
     expect(($this->before)())->toBe($snap);
 });
 
@@ -84,14 +84,14 @@ it('kasir: satu barang gagal di tengah keranjang membatalkan seluruh penjualan',
 it('kasir: cabang yang bukan miliknya, metode ngawur, dan keranjang kosong ditolak', function () {
     $item = [['product_id' => $this->case->id, 'qty' => 1]];
     expect(fn () => $this->pos->checkout($this->cashier, $this->other->id, '2026-11-16', $item, 'kas'))->toThrow(DomainException::class, 'akses');
-    expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', $item, 'kartu'))->toThrow(DomainException::class, 'Metode');
+    expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', $item, 'kartu'))->toThrow(DomainException::class, 'Cara bayar');
     expect(fn () => $this->pos->checkout($this->cashier, $this->branch->id, '2026-11-16', [], 'kas'))->toThrow(DomainException::class, 'kosong');
 });
 
 it('kasir: teknisi atau HR tidak boleh jualan di kasir', function (string $role) {
     $u = huser($role, $this->branch->id);
     expect(fn () => $this->pos->checkout($u, $this->branch->id, '2026-11-16', [['product_id' => $this->case->id, 'qty' => 1]], 'kas'))
-        ->toThrow(DomainException::class, 'tidak berwenang');
+        ->toThrow(DomainException::class, 'tidak punya izin');
 })->with(['hr', 'technician']);
 
 it('kasir: Livewire klik Bayar dua kali tidak membuat dua penjualan dan tidak error', function () {
@@ -116,7 +116,7 @@ it('jurnal: tidak seimbang, nominal desimal/negatif, akun salah ketik, satu bari
     expect($post([['account' => '1-1100', 'debit' => 100], ['account' => '4-1100', 'credit' => 90]]))->toThrow(Exception::class, 'seimbang');
     expect($post([['account' => '1-1100', 'debit' => 100.5], ['account' => '4-1100', 'credit' => 100.5]]))->toThrow(Exception::class);
     expect($post([['account' => '1-1100', 'debit' => -100], ['account' => '4-1100', 'credit' => -100]]))->toThrow(Exception::class);
-    expect($post([['account' => '9-9999', 'debit' => 100], ['account' => '4-1100', 'credit' => 100]]))->toThrow(Exception::class, 'tidak ditemukan');
+    expect($post([['account' => '9-9999', 'debit' => 100], ['account' => '4-1100', 'credit' => 100]]))->toThrow(Exception::class, 'tidak aktif atau tidak ditemukan');
     expect($post([['account' => '1-1100', 'debit' => 100]]))->toThrow(Exception::class, 'dua baris');
     expect($post([['account' => '1-1100', 'debit' => 100, 'credit' => 100], ['account' => '4-1100', 'credit' => 0]]))->toThrow(Exception::class);
 });
@@ -127,7 +127,7 @@ it('jurnal: salah catat dikoreksi dengan pembalik, dan membalik dua kali ditolak
     $cash = hbal('1-1100');
     $l->reverse($j, '2026-11-21');
     expect(hbal('1-1100'))->toBe($cash - 100_000);
-    expect(fn () => $l->reverse($j, '2026-11-21'))->toThrow(Exception::class, 'sudah pernah dibalik');
+    expect(fn () => $l->reverse($j, '2026-11-21'))->toThrow(Exception::class, 'sudah pernah dibatalkan');
 });
 
 it('jurnal: mengubah atau menghapus jurnal lama ditolak oleh database', function () {
@@ -161,7 +161,7 @@ it('utang: pengaju menyetujui sendiri, klik setuju dua kali, dan cabang salah di
     $outsider = huser('approver', $this->other->id);
     $svc = app(PaymentApprovalService::class);
     $req = $svc->request($maker, $this->branch->id, 100_000, 'kas');
-    expect(fn () => $svc->approve($req, $maker, '2026-11-20'))->toThrow(DomainException::class, 'sendiri');
+    expect(fn () => $svc->approve($req, $maker, '2026-11-20'))->toThrow(DomainException::class, 'orang lain');
     expect(fn () => $svc->approve($req, $outsider, '2026-11-20'))->toThrow(DomainException::class, 'berwenang');
     $svc->approve($req, $approver, '2026-11-20');
     $paid = hbal('2-1100');
@@ -175,10 +175,10 @@ it('servis: tutup dua kali, DP lebih besar dari tagihan, tagihan nol, dan biaya 
     $staff = huser('technician', $this->branch->id);
     $svc = app(ServiceTicketService::class);
     $t = $svc->receive($staff, $this->branch->id, '2026-11-17', ['customer_name' => 'Rina', 'device' => 'iPhone 12'], 200_000);
-    expect(fn () => $svc->complete($t, $staff, '2026-11-18', [], 0, 'kas'))->toThrow(DomainException::class, 'lebih dari nol');
+    expect(fn () => $svc->complete($t, $staff, '2026-11-18', [], 0, 'kas'))->toThrow(DomainException::class, 'lebih dari Rp0');
     expect(fn () => $svc->complete($t, $staff, '2026-11-18', [], 100_000, 'kas'))->toThrow(DomainException::class, 'DP melebihi');
-    expect(fn () => $svc->cancel($t, $staff, '2026-11-18', 250_000))->toThrow(DomainException::class, 'melebihi DP');
-    expect(fn () => $svc->receive($staff, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'device' => 'Y'], -1))->toThrow(DomainException::class, 'negatif');
+    expect(fn () => $svc->cancel($t, $staff, '2026-11-18', 250_000))->toThrow(DomainException::class, 'lebih besar dari DP');
+    expect(fn () => $svc->receive($staff, $this->branch->id, '2026-11-17', ['customer_name' => 'X', 'device' => 'Y'], -1))->toThrow(DomainException::class, 'minus');
     $svc->complete($t, $staff, '2026-11-18', [], 300_000, 'kas');
     expect(fn () => $svc->complete($t->fresh(), $staff, '2026-11-18', [], 300_000, 'kas'))->toThrow(DomainException::class, 'sudah ditutup');
     expect(fn () => $svc->cancel($t->fresh(), $staff, '2026-11-18', 0))->toThrow(DomainException::class, 'sudah ditutup');
@@ -207,7 +207,7 @@ beforeEach(function () {
 
 it('absensi: total hari salah, dan mengubah absensi setelah payroll disetujui ditolak', function () {
     $ok = ['present' => 26, 'leave' => 0, 'sick' => 0, 'absent' => 0, 'late' => 0, 'overtime_hours' => 0];
-    expect(fn () => $this->hrs->recordAttendance($this->hr, $this->emp, 2027, 1, ['present' => 20] + $ok))->toThrow(DomainException::class, 'harus 26');
+    expect(fn () => $this->hrs->recordAttendance($this->hr, $this->emp, 2027, 1, ['present' => 20] + $ok))->toThrow(DomainException::class, 'harus pas 26');
     expect(fn () => $this->hrs->recordAttendance($this->hr, $this->emp, 2027, 1, ['present' => 30, 'absent' => -4] + $ok))->toThrow(DomainException::class);
     $this->hrs->recordAttendance($this->hr, $this->emp, 2027, 1, $ok);
     $run = $this->payroll->generate($this->hr, $this->branch->id, 2027, 1);
@@ -225,7 +225,7 @@ it('payroll: hitung tanpa absensi, hitung ulang saat sudah disetujui, bayar sebe
     expect(fn () => $this->payroll->approve($this->hr, $run, '2027-01-31'))->toThrow(DomainException::class);
     $this->payroll->approve($this->boss, $run, '2027-01-31');
     expect(fn () => $this->payroll->generate($this->hr, $this->branch->id, 2027, 1))->toThrow(DomainException::class, 'sudah ada');
-    expect(fn () => $this->payroll->approve($this->boss, $run->fresh(), '2027-01-31'))->toThrow(DomainException::class, 'draft');
+    expect(fn () => $this->payroll->approve($this->boss, $run->fresh(), '2027-01-31'))->toThrow(DomainException::class, 'masih konsep');
     $this->payroll->pay($this->fin, $run->fresh(), '2027-01-31');
     $cash = hbal('1-1100');
     expect(fn () => $this->payroll->pay($this->fin, $run->fresh(), '2027-01-31'))->toThrow(DomainException::class, 'sudah dibayar');
@@ -318,7 +318,7 @@ it('stok: terima barang nol/negatif dan transfer ke cabang yang sama atau lebih 
     $inv = app(App\Domain\Inventory\InventoryService::class);
     expect(fn () => $inv->receive($this->branch->id, $this->case->id, 0, 1000, '2026-11-20', 'x'))->toThrow(InvalidArgumentException::class);
     expect(fn () => $inv->receive($this->branch->id, $this->case->id, 1, -1000, '2026-11-20', 'x'))->toThrow(InvalidArgumentException::class);
-    expect(fn () => $this->tx->transferStock($this->branch->id, $this->branch->id, '2026-11-20', 'CASE', 1))->toThrow(InvalidArgumentException::class, 'berbeda');
+    expect(fn () => $this->tx->transferStock($this->branch->id, $this->branch->id, '2026-11-20', 'CASE', 1))->toThrow(DomainException::class, 'berbeda');
     expect(fn () => $this->tx->transferStock($this->branch->id, $this->other->id, '2026-11-20', 'CASE', 99))->toThrow(InsufficientStockException::class);
     expect($inv->balance($this->branch->id, $this->case->id)->qty)->toBe(5);
 });

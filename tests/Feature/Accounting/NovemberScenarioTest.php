@@ -91,18 +91,18 @@ it('menjalankan T1 sampai T19 dan menghasilkan laporan yang persis sama dengan d
     $reports = app(ReportService::class);
 
     $is = $reports->incomeStatement(null, '2026-11-01', '2026-11-30');
-    expect($is['revenue_rows'])->toBe(['4-1000' => 650_000, '4-1100' => 4_360_000]);
+    expect($is['revenue_rows'])->toBe(['4-1000' => 650_000, '4-1100' => 4_360_000, '4-2000' => 0]);
     expect($is['revenue'])->toBe(5_010_000);
     expect($is['cogs'])->toBe(2_250_000);
     expect($is['gross_profit'])->toBe(2_760_000);
-    expect($is['expense_rows'])->toBe(['6-1000' => 4_000_000, '6-1100' => 0, '6-2000' => 3_000_000, '6-2100' => 500_000, '6-6000' => 1_050_000, '8-1000' => 16_100, '8-1100' => 15_000, '8-1200' => 0]);
+    expect($is['expense_rows'])->toBe(['6-1000' => 4_000_000, '6-1100' => 0, '6-2000' => 3_000_000, '6-2100' => 500_000, '6-3000' => 0, '6-6000' => 1_050_000, '8-1000' => 16_100, '8-1100' => 15_000, '8-1200' => 0, '8-1300' => 0]);
     expect($is['net_income'])->toBe(-5_821_100);
 
     $bs = $reports->balanceSheet(null, '2026-11-30');
-    expect($bs['asset_rows'])->toBe(['1-1100' => 4_610_000, '1-1110' => 24_268_900, '1-1300' => 0, '1-1500' => 20_300_000, '1-1600' => 0]);
+    expect($bs['asset_rows'])->toBe(['1-1100' => 4_610_000, '1-1110' => 24_268_900, '1-1300' => 0, '1-1500' => 20_300_000, '1-1600' => 0, '1-2000' => 0, '1-2100' => 0, '1-2200' => 0, '1-2900' => 0]);
     expect($bs['assets'])->toBe(49_178_900);
-    expect($bs['liability_rows'])->toBe(['2-1100' => 5_000_000, '2-1200' => 0, '2-1300' => 0, '2-1400' => 0, '2-1500' => 0, '2-1600' => 0]);
-    expect($bs['equity_rows'])->toBe(['3-1000' => 50_000_000]);
+    expect($bs['liability_rows'])->toBe(['2-1100' => 5_000_000, '2-1200' => 0, '2-1300' => 0, '2-1400' => 0, '2-1500' => 0, '2-1600' => 0, '2-1700' => 0]);
+    expect($bs['equity_rows'])->toBe(['3-1000' => 50_000_000, '3-2000' => 0]);
     expect($bs['current_earnings'])->toBe(-5_821_100);
     expect($bs['liabilities_and_equity'])->toBe(49_178_900)->and($bs['assets'])->toBe($bs['liabilities_and_equity']);
 

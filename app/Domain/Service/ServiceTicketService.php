@@ -20,10 +20,10 @@ class ServiceTicketService
     private function authorize(User $user, int $branchId): void
     {
         if (! $user->can('manage-services')) {
-            throw new DomainException('Pengguna ini tidak berwenang mengelola servis.');
+            throw new DomainException('Anda tidak punya izin mengelola servis. Hubungi pemilik toko.');
         }
         if (! $user->canAccessBranch($branchId)) {
-            throw new DomainException('Pengguna tidak punya akses ke cabang ini.');
+            throw new DomainException('Anda tidak punya akses ke cabang ini. Pilih cabang lain atau hubungi pemilik toko.');
         }
     }
 
@@ -32,7 +32,7 @@ class ServiceTicketService
     {
         $this->authorize($user, $branchId);
         if ($deposit < 0) {
-            throw new DomainException('DP tidak boleh negatif.');
+            throw new DomainException('Uang muka (DP) tidak boleh minus. Isi 0 kalau tidak ada DP.');
         }
 
         return DB::transaction(function () use ($branchId, $date, $data, $deposit, $depositMethod) {
@@ -65,16 +65,16 @@ class ServiceTicketService
         return DB::transaction(function () use ($ticket, $date, $parts, $labor, $method) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
-                throw new DomainException('Servis ini sudah ditutup.');
+                throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi tidak bisa diubah lagi.');
             }
 
             $partsTotal = array_sum(array_map(fn ($p) => $p['qty'] * $p['price'], $parts));
             $total = $partsTotal + $labor;
             if ($labor < 0 || $total <= 0) {
-                throw new DomainException('Total tagihan servis harus lebih dari nol.');
+                throw new DomainException('Total biaya servis harus lebih dari Rp0. Isi ongkos servis atau tambah sparepart.');
             }
             if ($ticket->deposit > $total) {
-                throw new DomainException('DP melebihi total tagihan; selesaikan sebagai pembatalan atau tambah biaya.');
+                throw new DomainException('DP melebihi total biaya servis. Tambah ongkos servis atau sparepart, atau pakai Batalkan servis.');
             }
 
             $mdrBps = $method === 'qris' ? \App\Domain\Accounting\TaxSettings::qrisBps() : 0;
@@ -99,10 +99,10 @@ class ServiceTicketService
         return DB::transaction(function () use ($ticket, $date, $fee, $refundMethod) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'diterima') {
-                throw new DomainException('Servis ini sudah ditutup.');
+                throw new DomainException('Servis ini sudah ditutup (selesai atau dibatalkan), jadi tidak bisa diubah lagi.');
             }
             if ($fee < 0 || $fee > $ticket->deposit) {
-                throw new DomainException('Biaya cek tidak boleh melebihi DP yang diterima.');
+                throw new DomainException('Biaya pengecekan tidak boleh lebih besar dari DP yang sudah diterima.');
             }
 
             $journalId = null;
@@ -126,7 +126,7 @@ class ServiceTicketService
         return DB::transaction(function () use ($ticket, $date, $sku, $qty) {
             $ticket = ServiceTicket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
             if ($ticket->status !== 'selesai') {
-                throw new DomainException('Garansi hanya untuk servis yang sudah selesai.');
+                throw new DomainException('Garansi hanya bisa dicatat untuk servis yang sudah selesai.');
             }
 
             $journal = $this->transactions->warrantyClaim($ticket->branch_id, $date, $sku, $qty, $ticket->code);

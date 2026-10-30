@@ -150,11 +150,11 @@ it('K6: pengaju tidak boleh menyetujui pembayaran sendiri dan harus punya wewena
 
     // Pengaju tanpa wewenang persetujuan
     $request = $approvals->request($maker, $this->branch->id, 6_000_000, 'bank');
-    expect(fn () => $approvals->approve($request, $maker, '2026-11-08'))->toThrow(DomainException::class, 'sendiri');
+    expect(fn () => $approvals->approve($request, $maker, '2026-11-08'))->toThrow(DomainException::class, 'orang lain');
 
     // Pemilik pun tidak boleh menyetujui pengajuannya sendiri
     $ownRequest = $approvals->request($owner, $this->branch->id, 1_000_000, 'bank');
-    expect(fn () => $approvals->approve($ownRequest, $owner, '2026-11-08'))->toThrow(DomainException::class, 'sendiri');
+    expect(fn () => $approvals->approve($ownRequest, $owner, '2026-11-08'))->toThrow(DomainException::class, 'orang lain');
 
     // Penyetuju dari luar cabang ditolak
     expect(fn () => $approvals->approve($request, $outsider, '2026-11-08'))->toThrow(DomainException::class, 'tidak berwenang');

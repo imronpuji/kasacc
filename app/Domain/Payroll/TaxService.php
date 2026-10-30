@@ -22,7 +22,7 @@ class TaxService
     public function ptkpAmount(?string $ptkp): int
     {
         if (! $ptkp || ! isset(self::PTKP[$ptkp])) {
-            throw new DomainException('Status PTKP karyawan belum diisi atau tidak dikenal.');
+            throw new DomainException('Status PTKP (golongan pajak karyawan) belum diisi atau tidak dikenal. Isi dulu di data karyawan.');
         }
 
         return self::PTKP[$ptkp];

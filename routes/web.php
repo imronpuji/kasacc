@@ -2,9 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::redirect('/', '/admin');
 
 Route::get('/struk/{receipt}', function (string $receipt) {
     $sale = App\Models\PosSale::with(['items.product', 'branch', 'cashier'])->where('receipt_no', $receipt)->firstOrFail();
@@ -15,7 +13,9 @@ Route::get('/struk/{receipt}', function (string $receipt) {
 
 Route::get('/slip/{run}', function (int $run) {
     $user = auth()->user();
-    abort_unless($user, 403);
+    if (! $user) {
+        return redirect()->guest(url('/admin/login'));
+    }
     $employeeIds = App\Models\Employee::where('user_id', $user->id)->pluck('id');
     $manager = $user->can('manage-hr') || $user->can('approve-payroll');
     $run = App\Models\PayrollRun::with(['branch', 'slips.employee'])->findOrFail($run);

@@ -24,7 +24,8 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->login(\App\Filament\Auth\Login::class)
+            ->profile()
             ->brandName(config('app.name', 'iZone'))
             ->brandLogo(asset('images/logo.svg'))
             ->darkModeBrandLogo(asset('images/logo-dark.svg'))
@@ -35,7 +36,7 @@ class AdminPanelProvider extends PanelProvider
             ->topbar(false)
             ->sidebarWidth('17rem')
             ->maxContentWidth('full')
-            ->navigationGroups(['Operasional', 'Keuangan', 'SDM', 'Data master'])
+            ->navigationGroups(['Operasional', 'Keuangan', 'Karyawan', 'Data master'])
             ->renderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn () => '<link rel="stylesheet" href="'.asset('css/izone.css').'?v='.@filemtime(public_path('css/izone.css')).'">')
             ->colors([
                 'primary' => '#0B63F6',

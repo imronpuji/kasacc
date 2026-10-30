@@ -20,7 +20,7 @@ class AbsenSaya extends Page
 
     protected static ?string $title = 'Absen saya';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'SDM';
+    protected static string|\UnitEnum|null $navigationGroup = 'Karyawan';
 
     protected static ?int $navigationSort = 0;
 
@@ -33,7 +33,7 @@ class AbsenSaya extends Page
 
     public function getSubheading(): ?string
     {
-        return 'Tekan Masuk saat tiba di toko dan Pulang saat selesai kerja. HP akan meminta izin lokasi, pilih Izinkan.';
+        return 'Tekan Absen masuk saat tiba di toko dan Absen pulang saat selesai kerja. HP akan meminta izin lokasi, pilih Izinkan.';
     }
 
     public function clockIn(float $lat, float $lng, float $accuracy = 0): void
@@ -48,16 +48,19 @@ class AbsenSaya extends Page
 
     public function geoError(string $message): void
     {
-        Notification::make()->title('Lokasi tidak bisa dibaca')->body($message)->danger()->send();
+        Notification::make()->title('Belum berhasil')->body($message)->danger()->send();
     }
 
     private function act(callable $fn, string $ok): void
     {
         try {
             $log = $fn(app(AttendanceLogService::class));
-            Notification::make()->title($ok)->body('Jarak dari toko '.($log->check_out_at ? $log->out_distance_m : $log->in_distance_m).' m.')->success()->send();
+            Notification::make()->title($ok)->body('Anda berjarak '.($log->check_out_at ? $log->out_distance_m : $log->in_distance_m).' m dari toko.')->success()->send();
+        } catch (\DomainException $e) {
+            Notification::make()->title('Absen gagal')->body($e->getMessage())->danger()->send();
         } catch (\Throwable $e) {
-            Notification::make()->title('Absen gagal')->body($e instanceof \DomainException ? $e->getMessage() : 'Terjadi kesalahan. Coba lagi.')->danger()->send();
+            report($e);
+            Notification::make()->title('Absen gagal')->body('Terjadi masalah di sistem. Tunggu sebentar lalu tekan tombol absen lagi.')->danger()->send();
         }
     }
 
@@ -73,7 +76,7 @@ class AbsenSaya extends Page
             'logs' => $emp ? AttendanceLog::where('employee_id', $emp->id)->orderByDesc('work_date')->limit(10)->get() : collect(),
             'now' => $svc->now(),
             'tz' => $tz,
-            'branchReady' => $emp && $emp->branch->lat !== null,
+            'branchReady' => $emp && $emp->branch?->lat !== null && $emp->branch?->lng !== null,
         ];
     }
 }

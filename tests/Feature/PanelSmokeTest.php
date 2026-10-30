@@ -65,7 +65,7 @@ it('servis & stok: alur lewat halaman Filament (terima, selesai; beli, transfer)
         ->and(App\Models\StockBalance::where('branch_id', $b2->id)->value('qty'))->toBe(1);
 
     $lw = Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Servis::class)
-        ->callTableAction('terima', data: ['branch_id' => $b1->id, 'customer_name' => 'Rina', 'device' => 'iPhone 12', 'deposit' => 100_000, 'method' => 'kas']);
+        ->callTableAction('terima', data: ['branch_id' => $b1->id, 'customer_name' => 'Rina', 'device' => 'iPhone 12', 'complaint' => 'Layar pecah', 'deposit' => 100_000, 'method' => 'kas']);
     $ticket = App\Models\ServiceTicket::firstOrFail();
     $lw->callTableAction('selesai', $ticket, data: ['parts' => [['sku' => 'BAT12', 'qty' => 1, 'price' => 700_000]], 'labor' => 100_000, 'method' => 'kas']);
     expect($ticket->fresh()->status)->toBe('selesai')->and($ticket->fresh()->total)->toBe(800_000);
@@ -93,8 +93,9 @@ it('Laporan menampilkan bagian operasional (arus kas, kartu stok, buku besar) ta
 
     Livewire\Livewire::actingAs($owner)->test(App\Filament\Pages\Laporan::class)
         ->set('from', '2026-11-01')->set('to', '2026-11-30')->set('productId', $p->id)
-        ->assertSee('Arus kas')->assertSee('Penjualan kasir harian')->assertSee('Kartu stok')
-        ->assertSee('4.500.000')->assertSee('+10');
+        ->call('setReport', 'kas')->assertSee('Arus kas')->assertSee('4.500.000')
+        ->call('setReport', 'penjualan')->assertSee('Penjualan di kasir per hari')
+        ->call('setReport', 'admin')->assertSee('Riwayat stok')->assertSee('+10');
 });
 
 it('halaman SDM terbuka untuk pemilik, 403 untuk kasir', function () {

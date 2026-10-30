@@ -24,9 +24,13 @@ class BranchResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    protected static ?string $modelLabel = 'cabang';
+
+    protected static ?string $pluralModelLabel = 'Cabang';
+
     protected static ?string $model = Branch::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
 
     public static function canViewAny(): bool
     {

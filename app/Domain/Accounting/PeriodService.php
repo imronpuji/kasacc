@@ -18,7 +18,7 @@ class PeriodService
     public function unlock(int $year, int $month, bool $byOwner): Period
     {
         if (! $byOwner) {
-            throw new \DomainException('Hanya pemilik yang boleh membuka kunci periode.');
+            throw new \DomainException('Hanya pemilik usaha yang boleh membuka kunci bulan ini.');
         }
         $period = Period::where('year', $year)->where('month', $month)->firstOrFail();
         $period->update(['locked_at' => null, 'locked_by' => null]);

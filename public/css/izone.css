@@ -1,5 +1,5 @@
 /* Tema iZone: mengikuti desain di kanvas "iZone Redesign". Murni CSS, tidak perlu build. */
-:root{--iz-blue:#0B63F6;--iz-blue-dark:#0B4FC4;--iz-blue-soft:#E8F0FE;--iz-ink:#111827;--iz-muted:#5B6472;--iz-line:#E5E7EB;--iz-line-soft:#EEF0F3;--iz-bg:#F7F8FA}
+:root{--iz-blue:#0B63F6;--iz-blue-dark:#0A4FC4;--iz-blue-soft:#EAF1FF;--iz-ink:#0F172A;--iz-muted:#586174;--iz-line:#E3E7EE;--iz-line-soft:#EEF1F6;--iz-bg:#F4F6FA;--iz-shadow:0 1px 2px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.04);--iz-r:16px}
 html,body,.fi-body{background:var(--iz-bg)!important;color:var(--iz-ink);font-family:'Inter',system-ui,sans-serif}
 
 /* Sidebar */
@@ -12,7 +12,7 @@ html,body,.fi-body{background:var(--iz-bg)!important;color:var(--iz-ink);font-fa
 .fi-sidebar-item-btn{min-height:44px;border-radius:12px!important;padding:0 12px!important;font-size:15px;font-weight:500;color:#374151}
 .fi-sidebar-item-icon{width:20px!important;height:20px!important;color:#374151!important}
 .fi-sidebar-item-btn:hover{background:#F3F4F6!important}
-.fi-sidebar-item.fi-active .fi-sidebar-item-btn,.fi-sidebar-item-btn.fi-active{background:var(--iz-blue-soft)!important}
+.fi-sidebar-item.fi-active .fi-sidebar-item-btn,.fi-sidebar-item-btn.fi-active{background:var(--iz-blue-soft)!important;box-shadow:inset 3px 0 0 var(--iz-blue)!important}
 .fi-sidebar-item.fi-active .fi-sidebar-item-label,.fi-sidebar-item.fi-active .fi-sidebar-item-icon{color:var(--iz-blue-dark)!important}
 
 /* Halaman */
@@ -22,7 +22,7 @@ html,body,.fi-body{background:var(--iz-bg)!important;color:var(--iz-ink);font-fa
 .fi-header-subheading{font-size:15px!important;color:var(--iz-muted)!important;max-width:880px;line-height:1.55}
 
 /* Kartu */
-.fi-section,.fi-ta-ctn,.fi-wi-stats-overview-stat{background:#fff!important;border:1px solid var(--iz-line)!important;border-radius:18px!important;box-shadow:none!important;--tw-ring-shadow:0 0 #0000!important}
+.fi-section,.fi-ta-ctn,.fi-wi-stats-overview-stat{background:#fff!important;border:1px solid var(--iz-line)!important;border-radius:var(--iz-r)!important;box-shadow:var(--iz-shadow)!important;--tw-ring-shadow:0 0 #0000!important}
 .fi-section-header-heading{font-size:18px!important;font-weight:600!important}
 
 /* Tombol */
@@ -63,7 +63,7 @@ select.fi-select-input{min-height:48px;font-size:16px!important}
 .fi-no-notification{border-radius:16px!important}
 
 /* Komponen iZone (dashboard, payroll, kasir) */
-.iz-card{background:#fff;border:1px solid var(--iz-line);border-radius:18px;padding:22px 24px}
+.iz-card{background:#fff;border:1px solid var(--iz-line);border-radius:var(--iz-r);box-shadow:var(--iz-shadow);padding:22px 24px}
 .iz-kpis{display:flex;flex-wrap:wrap;gap:16px}
 .iz-kpi{flex:1 1 220px;display:flex;flex-direction:column;gap:6px;padding:20px 22px}
 .iz-kpi-label{font-size:14px;color:var(--iz-muted);font-weight:500}
@@ -112,3 +112,150 @@ section[id]{scroll-margin-top:16px}
 /* Tombol biasa di luar komponen Filament */
 .iz-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:12px;border:1px solid #D1D5DB;background:#fff;color:var(--iz-ink);font:600 15px 'Inter',system-ui,sans-serif;text-decoration:none;cursor:pointer}
 .iz-btn:hover{background:#F3F4F6}
+
+
+/* ===== Redesign: pelengkap umum ===== */
+*,*::before,*::after{-webkit-tap-highlight-color:transparent}
+body{-webkit-text-size-adjust:100%;overflow-x:hidden}
+.fi-main{padding-bottom:max(24px,env(safe-area-inset-bottom))}
+.fi-header-heading{text-wrap:balance}
+.fi-ta-ctn{overflow:hidden}
+.fi-ta-content-ctn,.fi-ta-content{-webkit-overflow-scrolling:touch}
+.fi-ta-header-cell,.fi-ta-cell{white-space:nowrap}
+.fi-ta-header-cell{background:#F8FAFC}
+.fi-input:focus-visible,.fi-btn:focus-visible,.fi-link:focus-visible,.iz-btn:focus-visible,.lp-tabs a:focus-visible{outline:3px solid rgba(11,99,246,.35);outline-offset:2px}
+.lp-tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+.lp-tabs::-webkit-scrollbar{display:none}
+.lp-tabs a{flex:0 0 auto}
+.lp-t{table-layout:auto}
+.iz-card:has(.lp-t),.iz-card:has(.lp-grid){overflow-x:auto}
+
+/* Halaman masuk */
+.fi-simple-layout{background:var(--iz-bg)!important;min-height:100dvh}
+.fi-simple-main-ctn{padding:24px 16px!important}
+.fi-simple-main{width:100%;max-width:440px!important;border-radius:24px!important;background:#fff!important;border:1px solid var(--iz-line);box-shadow:0 24px 60px rgba(15,23,42,.08)!important;padding:32px 28px!important}
+.fi-simple-header-heading{font-size:24px!important;font-weight:700!important;letter-spacing:-.02em}
+
+/* ===== Tablet ke bawah ===== */
+@media (max-width:1023px){
+  .fi-header-heading{font-size:26px!important}
+  .fi-page-header-main-ctn{padding-top:12px!important}
+  .fi-sidebar{box-shadow:0 0 60px rgba(15,23,42,.25)}
+}
+
+/* ===== HP ===== */
+@media (max-width:640px){
+  :root{--iz-r:14px}
+  .fi-main{padding-left:14px!important;padding-right:14px!important}
+  .fi-page-header-main-ctn{padding-top:8px!important;row-gap:12px!important}
+  .fi-header-heading{font-size:22px!important;line-height:1.2}
+  .fi-header-subheading{font-size:14px!important}
+  .fi-page-header-actions,.fi-ac{width:100%}
+  .fi-page-header .fi-btn{flex:1 1 auto}
+
+  /* Kartu ringkasan: dua kolom */
+  .iz-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .iz-kpi{flex:none;padding:14px 14px;gap:4px;min-width:0}
+  .iz-kpi-label{font-size:12.5px}
+  .iz-kpi-value{font-size:19px;line-height:1.15;overflow-wrap:anywhere}
+  .iz-kpi-note{font-size:12px}
+  .iz-card{padding:16px}
+  .iz-row{gap:12px}
+  .iz-grow-15,.iz-grow-1{flex:1 1 100%}
+  .iz-task{flex-wrap:wrap;gap:8px 10px;padding:12px 0}
+  .iz-task-body{flex:1 1 60%}
+  .iz-link{min-height:44px;display:inline-flex;align-items:center}
+
+  /* Isian dan tombol */
+  .fi-btn{min-height:48px}
+  .fi-input,select.fi-select-input{font-size:16px!important}
+  .fi-fo-field-label-content{font-size:14px!important}
+  .fi-section-header-heading{font-size:16px!important}
+  .fi-section-content{padding:14px!important}
+
+  /* Modal jadi lembar bawah */
+  .fi-modal-window-ctn{align-items:flex-end!important;padding:0!important}
+  .fi-modal-window{width:100%!important;max-width:100%!important;border-radius:24px 24px 0 0!important;max-height:92dvh;padding-bottom:env(safe-area-inset-bottom)}
+  .fi-modal-heading{font-size:20px!important}
+  .fi-modal-footer-actions{flex-direction:column-reverse;align-items:stretch}
+  .fi-modal-footer-actions .fi-btn{width:100%}
+
+  /* Tabel: padat, geser ke samping */
+  .fi-ta-header-cell,.fi-ta-cell{font-size:14px}
+  .fi-ta-cell:first-child,.fi-ta-header-cell:first-child{padding-left:12px}
+  .fi-ta-header-ctn{display:flex;flex-direction:column;gap:10px;padding:12px!important}
+  .fi-ta-header-toolbar>*{margin-inline-start:0!important}
+  .fi-ta-header-toolbar>.fi-ta-actions:not(:has(*)){display:none}
+  .fi-ta-header,.fi-ta-header .fi-ta-actions{padding:0!important;margin:0!important}
+  .fi-ta-header-toolbar .fi-ta-search-field,.fi-ta-header-toolbar>div:has(input[type=search]),.fi-ta-header-toolbar>div:has(.fi-input-wrp){margin-inline-start:0!important}
+  .fi-ta-header .fi-ta-actions{width:100%}
+  .fi-ta-header .fi-ta-actions .fi-btn{flex:1 1 100%}
+  .fi-ta-header-toolbar{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:0!important;width:100%}
+  .fi-ta-header-toolbar .fi-ta-search-field{flex:1 1 0;min-width:0;width:auto!important;max-width:none!important;margin:0!important}
+  .fi-ta-header-toolbar .fi-ta-actions{flex:0 0 auto}
+  .fi-ta-header-toolbar>*:has(input),.fi-ta-header-toolbar .fi-ta-search-field{flex:1 1 0!important;width:100%!important;max-width:none!important}
+  .fi-ta-empty-state{padding:28px 16px!important}
+
+  /* Laporan */
+  .iz-card>.lp-field{flex:1 1 140px!important}
+  .iz-card>.lp-field:first-child{flex-basis:100%!important}
+  .iz-card:has(>.lp-field){gap:12px!important}
+  .lp-t{font-size:14px}
+  .lp-t .in{padding-left:10px}
+  .lp-t tr.big td{font-size:15px}
+  .lp-grid td{padding:10px 6px;white-space:nowrap}
+  .lp-bars{gap:8px;height:160px}
+  .lp-bars span{font-size:11px}
+  .lp-tabs{margin-left:-14px;margin-right:-14px;padding:0 14px 2px}
+  .lp-tabs a{min-height:40px;padding:0 14px;font-size:14px}
+
+  /* Kasir: ubin dua kolom, tombol bayar selebar kartu */
+  .ks-tiles{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .ks-tile{min-height:96px!important;padding:12px!important}
+  .ks-tile b{font-size:14px!important}
+  .ks-tile em{font-size:16px!important}
+  .ks-cart{flex:1 1 100%!important;max-width:none!important;padding:16px!important}
+  .ks-total span:last-child{font-size:24px!important}
+  .ks-cart>.fi-btn{width:100%}
+
+  /* Absen */
+  .iz-row .iz-card[style*="text-align:center"] .fi-btn{width:100%}
+  .fi-simple-main{padding:28px 20px!important;border-radius:20px!important}
+}
+
+/* ===== HP sangat kecil ===== */
+@media (max-width:360px){
+  .iz-kpis{grid-template-columns:1fr}
+  .iz-kpi-value{font-size:22px}
+}
+
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Laporan: satu pertanyaan, satu jawaban */
+.lp-filter{display:flex;flex-direction:column;gap:14px}
+.lp-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.lp-chips::-webkit-scrollbar{display:none}
+.lp-chips button{flex:0 0 auto;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid #D1D5DB;background:#fff;color:var(--iz-ink);font-size:15px;font-weight:600;cursor:pointer}
+.lp-chips button.on{background:var(--iz-blue);border-color:var(--iz-blue);color:#fff}
+.lp-branch{max-width:360px}
+.lp-dates{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:520px}
+.lp-q{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.lp-q button{display:flex;flex-direction:column;gap:2px;text-align:left;min-height:72px;padding:14px 16px;border-radius:16px;border:1px solid #E3E7EE;background:#fff;cursor:pointer;color:var(--iz-ink)}
+.lp-q button b{font-size:17px;font-weight:700}
+.lp-q button span{font-size:14px;color:var(--iz-muted)}
+.lp-q button.on{background:#EAF1FF;border:2px solid var(--iz-blue)}
+.lp-q button.on b,.lp-q button.on span{color:#0B3A91}
+.lp-q .lp-adm{grid-column:1/-1;min-height:48px;justify-content:center;align-items:center;border:1px dashed #B8C0CF;background:transparent;font-size:15px;font-weight:600;color:var(--iz-muted)}
+.lp-q .lp-adm.on{background:#EAF1FF;color:#0B3A91}
+.lp-hero{display:flex;flex-direction:column;gap:4px;padding:22px;border-radius:20px;background:#E6F4EC;color:#0B5D3B}
+.lp-hero.bad{background:#FDECEA;color:#B42318}
+.lp-hero span{font-size:14px;font-weight:600}
+.lp-hero strong{font-size:16px;font-weight:700}
+.lp-hero em{font-style:normal;font-size:40px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.lp-hero small{font-size:15px}
+@media (max-width:640px){
+  .lp-q{grid-template-columns:1fr}
+  .lp-hero{padding:18px}
+  .lp-hero em{font-size:32px}
+  .lp-dates{grid-template-columns:1fr}
+}

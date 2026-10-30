@@ -1,4 +1,12 @@
 <x-filament-panels::page>
+    @if (! empty($quick))
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+            @foreach ($quick as $q)
+                <x-filament::button tag="a" :href="$q['url']" size="xl">{{ $q['label'] }}</x-filament::button>
+            @endforeach
+        </div>
+    @endif
+
     <div class="iz-kpis">
         @foreach ($kpis as $k)
             <div class="iz-card iz-kpi">
@@ -25,8 +33,11 @@
 
         @if ($aging)
         <section class="iz-card iz-grow-1">
-            <h2 style="margin:0 0 4px">Umur utang usaha</h2>
-            <div class="iz-task-sub" style="margin-bottom:16px">Pembelian kredit yang belum lunas</div>
+            <h2 style="margin:0 0 4px">Umur utang ke pemasok</h2>
+            <div class="iz-task-sub" style="margin-bottom:16px">Barang yang dibeli tapi belum dibayar</div>
+            @if (collect($aging)->every(fn ($a) => $a['value'] === 'Rp 0'))
+                <div class="iz-empty">Tidak ada utang ke pemasok. Semua pembelian sudah lunas.</div>
+            @endif
             @foreach ($aging as $a)
                 <div style="margin-bottom:14px">
                     <div style="display:flex;justify-content:space-between;font-size:14px"><span>{{ $a['label'] }}</span><span style="font-weight:600;font-variant-numeric:tabular-nums">{{ $a['value'] }}</span></div>

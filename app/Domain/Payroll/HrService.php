@@ -22,7 +22,7 @@ class HrService
     public function authorize(User $user, string $permission = 'manage-hr'): void
     {
         if (! $user->can($permission)) {
-            throw new DomainException('Anda tidak berwenang untuk tindakan ini.');
+            throw new DomainException('Anda tidak berwenang untuk tindakan ini. Hubungi pemilik toko bila perlu akses.');
         }
     }
 
@@ -32,17 +32,17 @@ class HrService
         $days = PayrollSettings::get('work_days');
         foreach (['present', 'leave', 'sick', 'absent', 'late', 'overtime_hours'] as $k) {
             if (! is_numeric($d[$k] ?? 0) || (int) ($d[$k] ?? 0) < 0) {
-                throw new DomainException('Angka absensi tidak boleh negatif atau bukan angka.');
+                throw new DomainException('Angka absensi harus berupa angka nol atau lebih. Periksa kolom yang berisi tanda minus atau huruf.');
             }
         }
         $total = $d['present'] + $d['leave'] + $d['sick'] + $d['absent'];
         if ($total !== $days) {
-            throw new DomainException("Jumlah hadir, izin, sakit, dan alpa harus {$days} hari (sekarang {$total}).");
+            throw new DomainException("Jumlah hari harus pas {$days} (sekarang {$total}). Tambah atau kurangi salah satu kolom.");
         }
         $locked = PayrollRun::where('branch_id', $e->branch_id)->where('year', $year)->where('month', $month)
             ->whereIn('status', ['disetujui', 'dibayar'])->exists();
         if ($locked) {
-            throw new DomainException('Absensi tidak bisa diubah karena payroll bulan ini sudah disetujui. Batalkan payroll dulu.');
+            throw new DomainException('Absensi bulan ini terkunci karena gaji sudah disetujui. Minta penyetuju membatalkan gaji bulan itu dulu.');
         }
 
         return Attendance::updateOrCreate(['employee_id' => $e->id, 'year' => $year, 'month' => $month], [
@@ -65,23 +65,37 @@ class HrService
         $this->authorize($user);
         $startDate = CarbonImmutable::parse($start);
         if ($e->hired_on->addMonths(12)->gt($startDate)) {
-            throw new DomainException('Cuti baru berlaku setelah 12 bulan masa kerja.');
+            throw new DomainException('Cuti baru bisa diambil setelah karyawan bekerja 12 bulan. Pilih tanggal mulai yang lebih akhir.');
         }
         if ($days < 1 || $days > $this->leaveBalance($e, $startDate->year, true)) {
-            throw new DomainException('Pengajuan melebihi saldo cuti tahun ini.');
+            throw new DomainException('Jumlah hari melebihi sisa jatah cuti tahun ini. Kurangi jumlah hari cuti.');
         }
 
         return LeaveRequest::create(['employee_id' => $e->id, 'start_date' => $start, 'days' => $days, 'requested_by' => $user->id])->fresh();
     }
 
-    public function approveLeave(User $user, LeaveRequest $req): LeaveRequest
+    public function rejectLeave(User $user, LeaveRequest $req): LeaveRequest
     {
         if ($req->requested_by === $user->id) {
-            throw new DomainException('Pengaju tidak boleh menyetujui cuti sendiri.');
+            throw new DomainException('Cuti ini tidak bisa Anda tolak sendiri karena Anda yang mengajukan. Minta orang lain memprosesnya.');
         }
         $this->authorize($user, 'approve-payroll');
         if ($req->status !== 'menunggu') {
-            throw new DomainException('Pengajuan ini sudah diproses.');
+            throw new DomainException('Pengajuan cuti ini sudah diproses sebelumnya. Muat ulang halaman untuk melihat statusnya.');
+        }
+        $req->update(['status' => 'ditolak', 'approved_by' => $user->id]);
+
+        return $req;
+    }
+
+    public function approveLeave(User $user, LeaveRequest $req): LeaveRequest
+    {
+        if ($req->requested_by === $user->id) {
+            throw new DomainException('Cuti ini tidak bisa Anda setujui sendiri karena Anda yang mengajukan. Minta orang lain menyetujuinya.');
+        }
+        $this->authorize($user, 'approve-payroll');
+        if ($req->status !== 'menunggu') {
+            throw new DomainException('Pengajuan cuti ini sudah diproses sebelumnya. Muat ulang halaman untuk melihat statusnya.');
         }
 
         return DB::transaction(function () use ($user, $req) {
@@ -101,6 +115,9 @@ class HrService
     public function estimatedNet(Employee $e): int
     {
         $upah = $e->upah();
+        if (! PayrollSettings::get('bpjs_on')) {
+            return $upah;
+        }
         $deduct = PayrollSettings::pct(min($upah, PayrollSettings::get('kes_cap')), PayrollSettings::get('kes_emp'))
             + PayrollSettings::pct($upah, PayrollSettings::get('jht_emp'))
             + PayrollSettings::pct(min($upah, PayrollSettings::get('jp_cap')), PayrollSettings::get('jp_emp'));
@@ -112,11 +129,11 @@ class HrService
     {
         $this->authorize($user);
         if ($amount <= 0 || $installment <= 0 || $installment > $amount) {
-            throw new DomainException('Nominal kasbon dan cicilan harus lebih dari nol, cicilan tidak boleh melebihi kasbon.');
+            throw new DomainException('Jumlah kasbon dan cicilan harus lebih dari nol, dan cicilan tidak boleh lebih besar dari kasbon. Periksa kedua angka itu.');
         }
         $max = PayrollSettings::pct($this->estimatedNet($e), PayrollSettings::get('advance_max_bps'));
         if ($installment > $max) {
-            throw new DomainException('Cicilan melebihi 50% gaji bersih sebelum kasbon (maksimal Rp'.number_format($max, 0, ',', '.').').');
+            throw new DomainException('Cicilan terlalu besar: maksimal 50% dari gaji bersih, yaitu Rp'.number_format($max, 0, ',', '.').' per bulan. Kecilkan cicilannya.');
         }
 
         return DB::transaction(function () use ($user, $e, $date, $amount, $installment, $method) {
@@ -125,7 +142,7 @@ class HrService
                 'description' => "Kasbon {$e->name}", 'created_by' => $user->id,
                 'lines' => [
                     ['account' => '1-1300', 'debit' => $amount],
-                    ['account' => $method === 'kas' ? '1-1100' : '1-1110', 'credit' => $amount],
+                    ['account' => \App\Domain\Accounting\MoneyAccounts::resolve($method), 'credit' => $amount],
                 ],
             ]);
 

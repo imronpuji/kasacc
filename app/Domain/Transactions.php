@@ -6,6 +6,7 @@ use App\Domain\Accounting\LedgerService;
 use App\Domain\Inventory\InventoryService;
 use App\Models\Journal;
 use App\Models\Product;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -36,12 +37,17 @@ class Transactions
     /** Akun kas/bank menurut metode: kas, bank, atau qris (masuk ke bank). */
     private function moneyAccount(string $method): string
     {
-        return $method === 'kas' ? self::KAS : self::BANK;
+        return \App\Domain\Accounting\MoneyAccounts::resolve($method);
     }
 
     private function productId(string $sku): int
     {
-        return Product::where('sku', $sku)->firstOrFail()->id;
+        $product = Product::where('sku', $sku)->first();
+        if (! $product) {
+            throw new ModelNotFoundException("Kode barang {$sku} tidak ditemukan.");
+        }
+
+        return $product->id;
     }
 
     private function post(int $branchId, string $date, array $lines, string $source, string $description, ?string $reference = null): Journal
@@ -54,6 +60,7 @@ class Transactions
 
     public function depositCapital(int $branchId, string $date, int $amount, string $method = 'bank'): Journal
     {
+        $this->positive($amount);
         return $this->post($branchId, $date, [
             ['account' => $this->moneyAccount($method), 'debit' => $amount],
             ['account' => self::MODAL, 'credit' => $amount],
@@ -62,6 +69,11 @@ class Transactions
 
     public function transferCash(int $branchId, string $date, int $amount, string $from, string $to): Journal
     {
+        $this->positive($amount);
+        if ($this->moneyAccount($from) === $this->moneyAccount($to)) {
+            throw new \DomainException('Asal dan tujuan uang tidak boleh sama. Pilih dua tempat yang berbeda.');
+        }
+        $this->assertFunds($branchId, $date, $from, $amount);
         return $this->post($branchId, $date, [
             ['account' => $this->moneyAccount($to), 'debit' => $amount],
             ['account' => $this->moneyAccount($from), 'credit' => $amount],
@@ -77,7 +89,7 @@ class Transactions
 
             return $this->post($branchId, $date, [
                 ['account' => self::PERSEDIAAN, 'debit' => $total],
-                ['account' => $method === 'kredit' ? self::UTANG : $this->moneyAccount($method), 'credit' => $total],
+                ['account' => in_array($method, ['kredit', 'utang'], true) ? self::UTANG : $this->moneyAccount($method), 'credit' => $total],
             ], 'purchase', "Pembelian {$sku}");
         });
     }
@@ -89,7 +101,7 @@ class Transactions
             $cost = $this->inventory->issue($branchId, $this->productId($sku), $qty, $date, 'retur');
 
             return $this->post($branchId, $date, [
-                ['account' => $refundMethod === 'utang' ? self::UTANG : $this->moneyAccount($refundMethod), 'debit' => $cost],
+                ['account' => in_array($refundMethod, ['utang', 'kredit'], true) ? self::UTANG : $this->moneyAccount($refundMethod), 'debit' => $cost],
                 ['account' => self::PERSEDIAAN, 'credit' => $cost],
             ], 'purchase', "Retur {$sku}");
         });
@@ -187,12 +199,136 @@ class Transactions
         return $this->completeService($branchId, $date, $items, 0, 0, $method, $mdrBps, $receipt, 'pos', 'Penjualan kasir');
     }
 
+    /** $method: kas, bank, kode rekening, atau kredit/utang (belum dibayar, masuk utang usaha). */
     public function payExpense(int $branchId, string $date, string $expenseAccount, int $amount, string $method, string $description): Journal
     {
+        $this->positive($amount);
+        $this->assertFunds($branchId, $date, $method, $amount);
+
         return $this->post($branchId, $date, [
             ['account' => $expenseAccount, 'debit' => $amount],
-            ['account' => $this->moneyAccount($method), 'credit' => $amount],
+            ['account' => in_array($method, ['kredit', 'utang'], true) ? self::UTANG : $this->moneyAccount($method), 'credit' => $amount],
         ], 'manual', $description);
+    }
+
+    /** Tolak uang keluar kalau saldo kas/bank cabang itu sampai tanggal tersebut tidak cukup. */
+    private function assertFunds(int $branchId, string $date, string $method, int $amount): void
+    {
+        if (in_array($method, ['kredit', 'utang'], true) || $amount <= 0) {
+            return;
+        }
+        $code = $this->moneyAccount($method);
+        $saldo = (int) DB::table('journal_lines as l')
+            ->join('journals as j', 'j.id', '=', 'l.journal_id')
+            ->join('accounts as a', 'a.id', '=', 'l.account_id')
+            ->where('a.code', $code)->where('j.branch_id', $branchId)->where('j.entry_date', '<=', $date)
+            ->selectRaw('coalesce(sum(l.debit) - sum(l.credit), 0) as n')->value('n');
+        if ($amount > $saldo) {
+            $nama = \App\Models\Account::where('code', $code)->value('name') ?? $code;
+            throw new \DomainException('Saldo '.$nama.' di cabang ini hanya Rp'.number_format(max($saldo, 0), 0, ',', '.').', tidak cukup untuk Rp'.number_format($amount, 0, ',', '.').'. Kecilkan jumlahnya, pilih sumber uang lain, atau tambah modal dulu.');
+        }
+    }
+
+    private function positive(int $amount): void
+    {
+        if ($amount <= 0) {
+            throw new \DomainException('Jumlah harus lebih dari nol. Isi jumlah rupiahnya.');
+        }
+    }
+
+    /** Pastikan akun bawaan ada (untuk database lama yang belum menjalankan seeder akun). */
+    private function ensure(string $code): string
+    {
+        foreach (\Database\Seeders\AccountSeeder::ACCOUNTS as [$c, $name, $type]) {
+            if ($c === $code) {
+                \App\Models\Account::firstOrCreate(['code' => $c], ['name' => $name, 'type' => $type, 'is_active' => true]);
+            }
+        }
+
+        return $code;
+    }
+
+    /** Pemilik mengambil uang usaha untuk keperluan pribadi (prive). Bukan biaya, tidak mengurangi untung. */
+    public function ownerWithdrawal(int $branchId, string $date, int $amount, string $method, string $note = ''): Journal
+    {
+        $this->positive($amount);
+        $this->assertFunds($branchId, $date, $method, $amount);
+
+        return $this->post($branchId, $date, [
+            ['account' => $this->ensure('3-2000'), 'debit' => $amount],
+            ['account' => $this->moneyAccount($method), 'credit' => $amount],
+        ], 'manual', trim('Pemilik mengambil uang '.$note));
+    }
+
+    /** Uang masuk dari pinjaman (bank atau orang lain). Menjadi utang pinjaman, bukan pemasukan. */
+    public function receiveLoan(int $branchId, string $date, int $amount, string $method, string $note = ''): Journal
+    {
+        $this->positive($amount);
+
+        return $this->post($branchId, $date, [
+            ['account' => $this->moneyAccount($method), 'debit' => $amount],
+            ['account' => $this->ensure('2-1700'), 'credit' => $amount],
+        ], 'manual', trim('Terima pinjaman '.$note));
+    }
+
+    /** Bayar cicilan pinjaman: pokok mengurangi utang, bunga menjadi biaya. */
+    public function repayLoan(int $branchId, string $date, int $principal, int $interest, string $method, string $note = ''): Journal
+    {
+        if ($principal < 0 || $interest < 0 || $principal + $interest <= 0) {
+            throw new \DomainException('Isi jumlah cicilan pokok atau bunga. Angkanya tidak boleh minus.');
+        }
+        $this->ensure('2-1700');
+        $owed = -(int) DB::table('journal_lines as l')->join('accounts as a', 'a.id', '=', 'l.account_id')->where('a.code', '2-1700')
+            ->selectRaw('coalesce(sum(l.debit)-sum(l.credit),0) n')->value('n');
+        if ($principal > $owed) {
+            throw new \DomainException('Cicilan pokok melebihi sisa utang pinjaman (sisa Rp'.number_format(max($owed, 0), 0, ',', '.').'). Kecilkan jumlahnya.');
+        }
+
+        $this->assertFunds($branchId, $date, $method, $principal + $interest);
+
+        return $this->post($branchId, $date, array_values(array_filter([
+            ['account' => '2-1700', 'debit' => $principal],
+            ['account' => $interest > 0 ? $this->ensure('8-1300') : '8-1300', 'debit' => $interest],
+            ['account' => $this->moneyAccount($method), 'credit' => $principal + $interest],
+        ], fn ($l) => ($l['debit'] ?? $l['credit']) > 0)), 'manual', trim('Bayar cicilan pinjaman '.$note));
+    }
+
+    /** Beli harta tahan lama (tanah, kendaraan, peralatan). Bukan biaya. $method boleh kredit (belum dibayar). */
+    public function buyAsset(int $branchId, string $date, string $assetCode, int $amount, string $method, string $note = ''): Journal
+    {
+        $this->positive($amount);
+        $acc = \App\Models\Account::where('code', $assetCode)->where('type', 'asset')->first();
+        if (! $acc || $assetCode < '1-2000' || $assetCode >= '1-2900') {
+            throw new \DomainException('Pilih jenis harta tahan lama yang sudah ada di Daftar akun (tanah, kendaraan, peralatan).');
+        }
+        $this->assertFunds($branchId, $date, $method, $amount);
+
+        return $this->post($branchId, $date, [
+            ['account' => $assetCode, 'debit' => $amount],
+            ['account' => in_array($method, ['kredit', 'utang'], true) ? self::UTANG : $this->moneyAccount($method), 'credit' => $amount],
+        ], 'manual', trim('Beli '.$acc->name.' '.$note));
+    }
+
+    /** Penyusutan: nilai kendaraan atau peralatan turun karena dipakai. Tidak ada uang keluar. */
+    public function depreciate(int $branchId, string $date, int $amount, string $note = ''): Journal
+    {
+        $this->positive($amount);
+
+        return $this->post($branchId, $date, [
+            ['account' => $this->ensure('6-3000'), 'debit' => $amount],
+            ['account' => $this->ensure('1-2900'), 'credit' => $amount],
+        ], 'manual', trim('Penyusutan harta '.$note));
+    }
+
+    /** Uang masuk di luar jualan, misalnya bunga bank. */
+    public function otherIncome(int $branchId, string $date, int $amount, string $method, string $note = ''): Journal
+    {
+        $this->positive($amount);
+
+        return $this->post($branchId, $date, [
+            ['account' => $this->moneyAccount($method), 'debit' => $amount],
+            ['account' => $this->ensure('4-2000'), 'credit' => $amount],
+        ], 'manual', trim('Pendapatan lain '.$note));
     }
 
     /**
@@ -204,7 +340,7 @@ class Transactions
     public function transferStock(int $fromBranch, int $toBranch, string $date, string $sku, int $qty): array
     {
         if ($fromBranch === $toBranch) {
-            throw new \InvalidArgumentException('Cabang asal dan tujuan harus berbeda.');
+            throw new \DomainException('Pilih cabang tujuan yang berbeda dari cabang asal.');
         }
 
         return DB::transaction(function () use ($fromBranch, $toBranch, $date, $sku, $qty) {

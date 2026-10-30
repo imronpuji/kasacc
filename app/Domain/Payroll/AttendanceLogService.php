@@ -21,10 +21,10 @@ class AttendanceLogService
     {
         $e = Employee::with('branch')->where('user_id', $user->id)->first();
         if (! $e) {
-            throw new DomainException('Akun ini belum terhubung ke data karyawan. Minta HR menghubungkannya di menu Karyawan.');
+            throw new DomainException('Akun ini belum terhubung ke data karyawan. Minta HR menghubungkannya di menu Karyawan dan absensi.');
         }
         if (! $e->is_active) {
-            throw new DomainException('Karyawan ini sudah nonaktif, tidak bisa absen.');
+            throw new DomainException('Karyawan ini sudah nonaktif sehingga tidak bisa absen. Hubungi HR kalau ini keliru.');
         }
 
         return $e;
@@ -42,19 +42,19 @@ class AttendanceLogService
     private function checkLocation(Employee $e, float $lat, float $lng, float $accuracy): int
     {
         if (abs($lat) > 90 || abs($lng) > 180 || ($lat == 0.0 && $lng == 0.0) || $accuracy < 0) {
-            throw new DomainException('Lokasi tidak terbaca. Nyalakan GPS di HP lalu coba lagi.');
+            throw new DomainException('Lokasi tidak terbaca. Nyalakan GPS di HP, tunggu sebentar, lalu tekan Absen lagi.');
         }
         $branch = $e->branch;
         if ($branch->lat === null || $branch->lng === null) {
-            throw new DomainException("Lokasi cabang {$branch->name} belum diatur. Minta pemilik mengisi koordinat di menu Cabang.");
+            throw new DomainException("Lokasi toko {$branch->name} belum diisi. Hubungi pemilik atau HR untuk mengisinya di menu Cabang.");
         }
         $max = PayrollSettings::get('max_gps_accuracy_m');
         if ($accuracy > $max) {
-            throw new DomainException('Sinyal GPS kurang akurat (selisih sekitar '.(int) round($accuracy)." m, batas {$max} m). Pindah ke tempat terbuka lalu coba lagi.");
+            throw new DomainException('Sinyal GPS kurang tepat. Pindah ke tempat terbuka, tunggu sebentar, lalu tekan Absen lagi.');
         }
         $distance = self::distanceMeters($lat, $lng, (float) $branch->lat, (float) $branch->lng);
         if ($distance > (int) $branch->geofence_m) {
-            throw new DomainException("Anda berjarak {$distance} m dari {$branch->name}. Absen hanya bisa dalam radius {$branch->geofence_m} m dari toko.");
+            throw new DomainException("Anda berjarak {$distance} m dari {$branch->name}. Absen hanya bisa dalam radius {$branch->geofence_m} m dari toko, jadi mendekatlah ke toko lalu coba lagi.");
         }
 
         return $distance;
@@ -75,7 +75,7 @@ class AttendanceLogService
         $late = $minutes > $start + PayrollSettings::get('late_grace_min') ? $minutes - $start : 0;
 
         return AttendanceLog::create([
-            'employee_id' => $e->id, 'work_date' => $now->toDateString(), 'check_in_at' => $now,
+            'employee_id' => $e->id, 'work_date' => $now->toDateString(), 'check_in_at' => $now->utc(),
             'in_lat' => $lat, 'in_lng' => $lng, 'in_distance_m' => $distance, 'in_accuracy_m' => (int) round($accuracy), 'late_minutes' => $late,
         ]);
     }
@@ -86,13 +86,13 @@ class AttendanceLogService
         $now = $this->now();
         $log = AttendanceLog::where('employee_id', $e->id)->whereDate('work_date', $now->toDateString())->first();
         if (! $log) {
-            throw new DomainException('Anda belum absen masuk hari ini.');
+            throw new DomainException('Anda belum absen masuk hari ini. Tekan Absen masuk dulu.');
         }
         if ($log->check_out_at) {
             throw new DomainException('Anda sudah absen pulang hari ini pukul '.$log->check_out_at->setTimezone(config('kasir.timezone'))->format('H:i').'.');
         }
         $distance = $this->checkLocation($e, $lat, $lng, $accuracy);
-        $log->update(['check_out_at' => $now, 'out_lat' => $lat, 'out_lng' => $lng, 'out_distance_m' => $distance]);
+        $log->update(['check_out_at' => $now->utc(), 'out_lat' => $lat, 'out_lng' => $lng, 'out_distance_m' => $distance]);
 
         return $log->fresh();
     }

@@ -13,22 +13,42 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
-/** Jurnal hanya bisa dilihat dan dibalik; tidak ada form buat atau ubah (jurnal tidak boleh diubah). */
+/** Catatan transaksi hanya bisa dilihat dan dibatalkan; tidak ada form buat atau ubah. */
 class JournalResource extends Resource
 {
     protected static ?string $model = Journal::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBookOpen;
 
-    protected static ?string $navigationLabel = 'Jurnal';
+    protected static ?string $navigationLabel = 'Catatan transaksi';
 
-    protected static ?string $modelLabel = 'Jurnal';
+    protected static ?string $modelLabel = 'catatan transaksi';
 
-    protected static ?string $pluralModelLabel = 'Jurnal';
+    protected static ?string $pluralModelLabel = 'Catatan transaksi';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
 
     protected static ?int $navigationSort = 2;
+
+    /** Satu-satunya daftar nama sumber catatan (dipakai tabel, filter, dan halaman detail). */
+    public const SOURCES = [
+        'manual' => 'Manual',
+        'purchase' => 'Pembelian',
+        'service' => 'Servis',
+        'pos' => 'Kasir',
+        'transfer' => 'Pindah stok',
+        'reversal' => 'Pembatalan',
+        'payroll' => 'Gaji',
+        'payroll_payment' => 'Pembayaran gaji',
+        'kasbon' => 'Kasbon',
+        'tax' => 'Pajak',
+        'bank_recon' => 'Rekening bank',
+    ];
+
+    public static function sourceLabel(?string $state): string
+    {
+        return self::SOURCES[$state] ?? (string) $state;
+    }
 
     public static function canViewAny(): bool
     {

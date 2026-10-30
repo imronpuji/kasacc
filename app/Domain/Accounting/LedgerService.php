@@ -10,6 +10,7 @@ use App\Models\Journal;
 use App\Models\Period;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LedgerService
 {
@@ -24,7 +25,7 @@ class LedgerService
     {
         $lines = $entry['lines'] ?? [];
         if (count($lines) < 2) {
-            throw new InvalidJournalException('Jurnal minimal terdiri dari dua baris.');
+            $this->fail(InvalidJournalException::class, 'Jurnal minimal terdiri dari dua baris.', 'Catatan minimal harus punya dua baris: satu uang masuk dan satu uang keluar.');
         }
 
         $debit = 0;
@@ -34,11 +35,11 @@ class LedgerService
             $d = $line['debit'] ?? 0;
             $c = $line['credit'] ?? 0;
             if (! is_int($d) || ! is_int($c) || $d < 0 || $c < 0 || ($d > 0) === ($c > 0)) {
-                throw new InvalidJournalException('Setiap baris harus berisi satu sisi (debit atau kredit) dengan nominal bulat lebih dari nol.');
+                $this->fail(InvalidJournalException::class, 'Setiap baris harus berisi satu sisi (debit atau kredit) dengan nominal bulat lebih dari nol.');
             }
             $account = Account::where('code', $line['account'])->where('is_active', true)->first();
             if (! $account) {
-                throw new InvalidJournalException("Akun {$line['account']} tidak ditemukan atau tidak aktif.");
+                $this->fail(InvalidJournalException::class, "Akun {$line['account']} tidak ditemukan atau tidak aktif.", 'Akun yang dipilih sudah tidak aktif atau tidak ditemukan. Pilih akun lain di Daftar akun.');
             }
             $debit += $d;
             $credit += $c;
@@ -46,7 +47,7 @@ class LedgerService
         }
 
         if ($debit !== $credit) {
-            throw new UnbalancedJournalException("Jurnal tidak seimbang: debit {$debit}, kredit {$credit}.");
+            $this->fail(UnbalancedJournalException::class, "Jurnal tidak seimbang: debit {$debit}, kredit {$credit}.", 'Catatan tidak seimbang: jumlah uang masuk dan keluar harus sama. Periksa angkanya.');
         }
 
         $date = CarbonImmutable::parse($entry['date']);
@@ -87,11 +88,19 @@ class LedgerService
         });
     }
 
+    /** Pesan teknis dicatat di log; pengguna hanya melihat pesan umum. */
+    private function fail(string $class, string $detail, ?string $userMessage = null): never
+    {
+        Log::error('LedgerService: '.$detail);
+
+        throw new $class($userMessage ?? 'Terjadi kesalahan pencatatan keuangan. Hubungi pemilik toko dan sebutkan waktu kejadian.');
+    }
+
     /** Koreksi = jurnal baru dengan sisi dibalik; jurnal asli tidak disentuh. */
     public function reverse(Journal $journal, string $date, ?int $userId = null): Journal
     {
         if (Journal::where('reversal_of', $journal->id)->exists()) {
-            throw new InvalidJournalException('Jurnal ini sudah pernah dibalik.');
+            throw new InvalidJournalException('Catatan ini sudah pernah dibatalkan sebelumnya.');
         }
 
         $lines = $journal->lines()->with('account')->get()->map(fn ($l) => [
@@ -118,7 +127,7 @@ class LedgerService
             ->whereNotNull('locked_at')->exists();
 
         if ($locked) {
-            throw new PeriodLockedException("Periode {$date->format('m/Y')} sudah dikunci; transaksi ditolak.");
+            throw new PeriodLockedException("Pembukuan bulan {$date->format('m/Y')} sudah dikunci. Hubungi pemilik toko.");
         }
     }
 }

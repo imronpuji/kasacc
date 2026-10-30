@@ -156,7 +156,7 @@ it('K2 pembuat payroll tidak boleh menyetujui sendiri', function () {
     januari();
     $owner = user('owner');
     $run = $this->pay->generate($owner, $this->branch->id, 2027, 1);
-    expect(fn () => $this->pay->approve($owner, $run, '2027-01-31'))->toThrow(DomainException::class, 'Pembuat');
+    expect(fn () => $this->pay->approve($owner, $run, '2027-01-31'))->toThrow(DomainException::class, 'yang menghitungnya');
     expect(fn () => $this->pay->approve($this->cashier, $run, '2027-01-31'))->toThrow(DomainException::class, 'tidak berwenang');
 });
 
@@ -172,7 +172,7 @@ it('K6 absensi tak boleh diubah setelah disetujui, boleh setelah dibatalkan; kom
     januari();
     $run = $this->pay->approve($this->approver, $this->pay->generate($this->finance, $this->branch->id, 2027, 1), '2027-01-31');
     expect(fn () => $this->hr->recordAttendance($this->finance, $this->sari, 2027, 1, ['present' => 26, 'leave' => 0, 'sick' => 0, 'absent' => 0, 'late' => 0, 'overtime_hours' => 0]))
-        ->toThrow(DomainException::class, 'payroll');
+        ->toThrow(DomainException::class, 'gaji');
     $this->pay->cancel($this->approver, $run, '2027-02-01');
     expect(bal('6-1000'))->toBe(0)->and(bal('1-1300'))->toBe(1_200_000)->and(EmployeeAdvance::first()->balance)->toBe(1_200_000);
     expect(ServiceTicket::whereNotNull('payroll_slip_id')->count())->toBe(0);
@@ -194,7 +194,7 @@ it('cuti C1-C4', function () {
     $att = \App\Models\Attendance::where('employee_id', $this->sari->id)->first();
     expect([$att->present, $att->leave])->toBe([25, 1]);
 
-    expect(fn () => $this->hr->requestLeave($this->finance, $this->andi, '2027-01-04', 13))->toThrow(DomainException::class, 'saldo');
+    expect(fn () => $this->hr->requestLeave($this->finance, $this->andi, '2027-01-04', 13))->toThrow(DomainException::class, 'melebihi');
     $own = $this->hr->requestLeave($this->finance, $this->budi, '2027-01-04', 1);
     expect(fn () => $this->hr->approveLeave($this->finance, $own))->toThrow(DomainException::class, 'sendiri');
     $baru = Employee::create(['branch_id' => $this->branch->id, 'name' => 'Baru', 'hired_on' => '2026-11-01', 'base_salary' => 3_000_000, 'ptkp' => 'TK/0', 'pay_method' => 'tunai']);
@@ -248,4 +248,28 @@ it('Desember: true-up PPh 21 Rina 381.000', function () {
         $pph = $run->slips()->first()->pph21;
         expect($pph)->toBe($m < 12 ? 261_000 : 381_000);
     }
+});
+
+it('usaha belum terdaftar: BPJS dan PPh 21 dimatikan, slip tanpa potongan dan tidak ada utang BPJS/PPh', function () {
+    PayrollSettings::set('bpjs_on', 0);
+    PayrollSettings::set('pph21_on', 0);
+    full26(1);
+    $run = $this->pay->generate($this->finance, $this->branch->id, 2027, 1);
+    foreach ($run->slips as $s) {
+        expect($s->emp_kes + $s->emp_jht + $s->emp_jp + $s->er_kes + $s->er_jht + $s->er_jp + $s->er_jkk + $s->er_jkm + $s->pph21)->toBe(0)
+            ->and($s->net_pay)->toBe($s->income);
+    }
+    $this->pay->approve($this->approver, $run, '2027-01-31');
+    expect(bal('2-1300'))->toBe(0)->and(bal('2-1500'))->toBe(0);
+});
+
+it('gaji dibayar dari rekening bank pilihan, bukan hanya akun Bank bawaan', function () {
+    \App\Models\Account::create(['code' => '1-1120', 'name' => 'Bank BCA', 'type' => 'asset', 'is_active' => true]);
+    app(Transactions::class)->depositCapital($this->branch->id, '2026-12-02', 100_000_000, '1-1120');
+    full26(1);
+    $run = $this->pay->generate($this->finance, $this->branch->id, 2027, 1);
+    $this->pay->approve($this->approver, $run, '2027-01-31');
+    $before = bal('1-1110');
+    $this->pay->pay($this->finance, $run->fresh(), '2027-02-01', '1-1120');
+    expect(bal('1-1120'))->toBeLessThan(100_000_000)->and(bal('1-1110'))->toBe($before);
 });

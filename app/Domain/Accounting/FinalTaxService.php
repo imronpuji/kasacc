@@ -82,14 +82,14 @@ class FinalTaxService
     public function accrue(User $user, Branch $b, int $y, int $m): int
     {
         if ($this->accrued($b, $y, $m)) {
-            throw new \DomainException('Pajak bulan ini untuk cabang ini sudah dicatat.');
+            throw new \DomainException('Pajak bulan ini untuk cabang ini sudah dicatat. Tidak perlu dicatat lagi.');
         }
         if (CarbonImmutable::create($y, $m, 1)->endOfMonth()->isFuture()) {
-            throw new \DomainException('Bulan ini belum selesai. Catat pajak setelah akhir bulan.');
+            throw new \DomainException('Bulan ini belum selesai. Hitung dan catat pajak setelah bulan berakhir.');
         }
         $tax = $this->due($b->id, $y, $m);
         if ($tax <= 0) {
-            throw new \DomainException('Tidak ada pajak yang perlu dicatat bulan ini (tidak ada omzet/laba, bebas pajak, atau pajak tidak dihitung di aplikasi).');
+            throw new \DomainException('Tidak ada pajak yang perlu dicatat bulan ini. Penyebabnya bisa: belum ada penjualan, masih bebas pajak, atau pajak tidak dihitung di aplikasi (lihat Pengaturan pajak).');
         }
         $this->ledger->post([
             'branch_id' => $b->id, 'date' => CarbonImmutable::create($y, $m, 1)->endOfMonth()->toDateString(),
@@ -105,19 +105,19 @@ class FinalTaxService
     public function pay(User $user, Branch $b, int $y, int $m, string $date, string $account = '1-1110'): int
     {
         if (! $this->accrued($b, $y, $m)) {
-            throw new \DomainException('Catat pajak bulan ini dulu sebelum mencatat setoran.');
+            throw new \DomainException('Hitung dan catat pajak bulan ini dulu, baru catat pembayarannya.');
         }
         if ($this->paid($b, $y, $m)) {
-            throw new \DomainException('Setoran bulan ini sudah dicatat.');
+            throw new \DomainException('Pembayaran pajak bulan ini sudah dicatat.');
         }
-        if (! in_array($account, ['1-1100', '1-1110'], true)) {
-            throw new \DomainException('Setoran harus dari Kas atau Bank.');
+        if (! in_array($account, array_keys(\App\Domain\Accounting\MoneyAccounts::all()), true)) {
+            throw new \DomainException('Pilih pembayaran dari kas atau salah satu rekening bank yang masih dipakai.');
         }
         $tax = (int) DB::table('journal_lines as l')->join('journals as j', 'j.id', '=', 'l.journal_id')
             ->where('j.reference', $this->accrualRef($b, $y, $m))->sum('l.debit');
         $this->ledger->post([
             'branch_id' => $b->id, 'date' => $date, 'source' => 'tax', 'created_by' => $user->id,
-            'reference' => $this->accrualRef($b, $y, $m).'-BAYAR', 'description' => sprintf('Setor PPh final %02d/%04d', $m, $y),
+            'reference' => $this->accrualRef($b, $y, $m).'-BAYAR', 'description' => sprintf('Bayar pajak usaha %02d/%04d', $m, $y),
             'lines' => [['account' => '2-1600', 'debit' => $tax], ['account' => $account, 'credit' => $tax]],
         ]);
 

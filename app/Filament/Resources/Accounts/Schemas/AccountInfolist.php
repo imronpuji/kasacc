@@ -10,19 +10,13 @@ class AccountInfolist
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                TextEntry::make('code'),
-                TextEntry::make('name'),
-                TextEntry::make('type'),
-                IconEntry::make('is_active')
-                    ->boolean(),
-                TextEntry::make('created_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-            ]);
+        return $schema->components([
+            TextEntry::make('name')->label('Nama akun'),
+            TextEntry::make('type')->label('Termasuk')->badge()
+                ->formatStateUsing(fn (string $state) => AccountForm::label($state)),
+            IconEntry::make('is_active')->label('Masih dipakai')->boolean(),
+            TextEntry::make('created_at')->label('Dibuat')->dateTime('d M Y H:i')->placeholder('-'),
+            TextEntry::make('updated_at')->label('Terakhir diubah')->dateTime('d M Y H:i')->placeholder('-'),
+        ]);
     }
 }

@@ -16,20 +16,20 @@ class ProductsTable
         return $table
             ->columns([
                 TextColumn::make('sku')
-                    ->label('SKU')
+                    ->label('Kode (SKU)')
                     ->searchable(),
-                TextColumn::make('name')
+                TextColumn::make('name')->label('Nama barang')
                     ->searchable(),
-                TextColumn::make('kind')->label('Jenis')
-                    ->searchable(),
+                TextColumn::make('kind')->label('Jenis')->badge()
+                    ->formatStateUsing(fn (string $state) => \App\Filament\Resources\Products\Schemas\ProductForm::KINDS[$state] ?? $state),
                 TextColumn::make('sale_price')->label('Harga jual')->money('IDR', locale: 'id')->sortable(),
-                TextColumn::make('barcode')->searchable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
+                TextColumn::make('barcode')->label('Barcode')->searchable()->placeholder('-'),
+                TextColumn::make('created_at')->label('Dibuat')
+                    ->dateTime('d M Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
+                TextColumn::make('updated_at')->label('Terakhir diubah')
+                    ->dateTime('d M Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -37,12 +37,18 @@ class ProductsTable
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
+                ViewAction::make()->label('Lihat'),
+                EditAction::make()->label('Ubah'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->label('Hapus terpilih')
+                        ->modalHeading('Hapus produk yang dipilih?')
+                        ->modalDescription('Data yang sudah dipakai di transaksi tidak bisa dihapus.')
+                        ->modalSubmitActionLabel('Ya, hapus')
+                        ->successNotificationTitle('Produk yang dipilih dihapus')
+                        ->failureNotificationTitle('Sebagian data belum terhapus')
+                        ->missingBulkProcessingFailureNotificationMessage('Data yang sudah dipakai di transaksi tidak bisa dihapus.'),
                 ]),
             ]);
     }

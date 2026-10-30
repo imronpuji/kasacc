@@ -73,7 +73,7 @@ it('setor modal dan biaya dengan nominal nol, negatif, atau akun ngawur ditolak'
     $s = ($this->snap)();
     expect(fn () => $this->tx->depositCapital($this->a->id, '2026-11-05', 0, 'kas'))->toThrow(Exception::class);
     expect(fn () => $this->tx->depositCapital($this->a->id, '2026-11-05', -5_000, 'bank'))->toThrow(Exception::class);
-    expect(fn () => $this->tx->payExpense($this->a->id, '2026-11-05', '8-9999', 10_000, 'kas', 'Listrik'))->toThrow(Exception::class, 'tidak ditemukan');
+    expect(fn () => $this->tx->payExpense($this->a->id, '2026-11-05', '8-9999', 10_000, 'kas', 'Listrik'))->toThrow(Exception::class, 'tidak aktif atau tidak ditemukan');
     expect(fn () => $this->tx->payExpense($this->a->id, '2026-11-05', '6-1000', 0, 'kas', 'Listrik'))->toThrow(Exception::class);
     expect(($this->snap)())->toBe($s);
 });
@@ -208,7 +208,7 @@ it('utang: pengaju di cabang yang bukan miliknya ditolak', function () {
 it('servis: peran HR dan staf cabang lain tidak boleh, kasir cabang sendiri boleh', function () {
     $svc = app(ServiceTicketService::class);
     $data = ['customer_name' => 'Rina', 'device' => 'iPhone 12'];
-    expect(fn () => $svc->receive(euser('hr', $this->a->id), $this->a->id, '2026-11-17', $data))->toThrow(DomainException::class, 'berwenang');
+    expect(fn () => $svc->receive(euser('hr', $this->a->id), $this->a->id, '2026-11-17', $data))->toThrow(DomainException::class, 'izin');
     expect(fn () => $svc->receive(euser('technician', $this->b->id), $this->a->id, '2026-11-17', $data))->toThrow(DomainException::class, 'akses');
     expect($svc->receive($this->cashier, $this->a->id, '2026-11-17', $data))->toBeInstanceOf(ServiceTicket::class);
 });
@@ -349,7 +349,7 @@ it('slip gaji: tamu, teknisi lain, dan slip yang belum disetujui tidak bisa dibu
     $this->actingAs($this->hr)->get(route('slip', $run->id))->assertOk();
     $this->actingAs($this->boss)->get(route('slip', 99999))->assertNotFound();
     auth()->logout();
-    $this->get(route('slip', $run->id))->assertForbidden();
+    $this->get(route('slip', $run->id))->assertRedirect(); // tamu diarahkan ke halaman masuk
 });
 
 // ---- Rekonsiliasi bank ----
@@ -383,7 +383,7 @@ it('bank: catat ke pembukuan dengan akun Bank, akun ngawur, atau diulang ditolak
     $fin = euser('finance_admin', $this->a->id);
     $svc->import($fin, $this->a->id, "tanggal,keterangan,jumlah\n2026-11-10,Biaya admin,-15000");
     $line = BankStatementLine::first();
-    expect(fn () => $svc->recordBankOnly($fin, $line, '1-1110'))->toThrow(DomainException::class, 'selain Bank');
+    expect(fn () => $svc->recordBankOnly($fin, $line, '1-1110'))->toThrow(DomainException::class, 'selain rekening bank');
     expect(fn () => $svc->recordBankOnly($fin, $line, '9-9999'))->toThrow(Exception::class);
     expect(Journal::where('source', 'bank_recon')->count())->toBe(0);
     $svc->recordBankOnly($fin, $line, '6-1000');

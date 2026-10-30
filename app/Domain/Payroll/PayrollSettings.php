@@ -15,7 +15,9 @@ class PayrollSettings
         'work_days' => 26, 'late_fee' => 20_000, 'overtime_divisor' => 173,
         'leave_quota' => 12, 'advance_max_bps' => 5000,
         'job_cost_bps' => 500, 'job_cost_cap' => 6_000_000,
+        'bpjs_on' => 1, 'pph21_on' => 1, // 1 = ikut hitung dan potong; 0 = usaha belum terdaftar, tidak dihitung
         'final_tax_bps' => 50, // PPh final UMKM 0,5% dari omzet bruto (PP 55/2022)
+        'weekly_off' => 64, // bitmask hari libur mingguan: Minggu (hari ke-7)
         'work_start_min' => 540, 'late_grace_min' => 10, 'max_gps_accuracy_m' => 150, // jam masuk 09:00, toleransi 10 menit, GPS paling kasar yang diterima
     ];
 

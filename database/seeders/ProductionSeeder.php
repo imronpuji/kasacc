@@ -20,7 +20,7 @@ class ProductionSeeder extends Seeder
             throw new \RuntimeException('Isi KASIR_OWNER_EMAIL dan KASIR_OWNER_PASSWORD (minimal 12 karakter) sebelum menjalankan ProductionSeeder.');
         }
 
-        $this->call([AccountSeeder::class, RoleSeeder::class]);
+        $this->call([AccountSeeder::class, RoleSeeder::class, HolidaySeeder::class]);
 
         $owner = User::firstOrCreate(
             ['email' => $email],

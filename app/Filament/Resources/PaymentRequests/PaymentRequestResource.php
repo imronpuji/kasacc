@@ -21,13 +21,32 @@ class PaymentRequestResource extends Resource
 
     protected static ?string $navigationLabel = 'Pembayaran utang';
 
-    protected static ?string $modelLabel = 'Pengajuan pembayaran';
+    protected static ?string $modelLabel = 'pembayaran utang';
+
+    protected static ?string $pluralModelLabel = 'Pembayaran utang';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
 
     protected static ?int $navigationSort = 4;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    public const STATUSES = ['pending' => 'Menunggu persetujuan', 'approved' => 'Disetujui', 'rejected' => 'Ditolak'];
+
+    public static function methodLabel(?string $state): string
+    {
+        return \App\Domain\Accounting\MoneyAccounts::label($state);
+    }
+
+    public static function statusLabel(?string $state): string
+    {
+        return self::STATUSES[$state] ?? (string) $state;
+    }
+
+    public static function statusColor(?string $state): string
+    {
+        return match ($state) { 'approved' => 'success', 'rejected' => 'danger', default => 'warning' };
+    }
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
 
     public static function canViewAny(): bool
     {

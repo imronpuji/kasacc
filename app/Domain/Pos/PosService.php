@@ -23,28 +23,31 @@ class PosService
     public function checkout(User $cashier, int $branchId, string $date, array $items, string $method): PosSale
     {
         if (! $cashier->can('post-sales')) {
-            throw new DomainException('Pengguna ini tidak berwenang melakukan penjualan kasir.');
+            throw new DomainException('Anda tidak punya izin untuk berjualan di Kasir. Hubungi pemilik toko.');
         }
         if (! $cashier->canAccessBranch($branchId)) {
-            throw new DomainException('Pengguna tidak punya akses ke cabang ini.');
+            throw new DomainException('Anda tidak punya akses ke cabang ini. Pilih cabang lain atau hubungi pemilik toko.');
         }
-        if (! in_array($method, ['kas', 'bank', 'qris'], true)) {
-            throw new DomainException('Metode pembayaran tidak dikenal.');
+        if ($method !== 'qris' && ! \App\Domain\Accounting\MoneyAccounts::valid($method)) {
+            throw new DomainException('Cara bayar tidak dikenal. Pilih salah satu cara bayar yang tersedia di kasir.');
         }
         if ($items === []) {
-            throw new DomainException('Keranjang kosong.');
+            throw new DomainException('Keranjang masih kosong. Ketuk barang di daftar untuk menambahkannya.');
         }
 
         $lines = [];
         foreach ($items as $item) {
-            $product = Product::findOrFail($item['product_id']);
+            $product = Product::find($item['product_id']);
+            if (! $product) {
+                throw new DomainException('Barang tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+            }
             $qty = $item['qty'] ?? 0;
             $price = $item['price'] ?? $product->sale_price;
             if (! is_int($price) || $price <= 0) {
-                throw new DomainException("Harga jual {$product->name} belum diisi (Rp0). Isi dulu di menu Products.");
+                throw new DomainException("Harga jual {$product->name} belum diisi. Isi dulu lewat menu Produk.");
             }
             if (! is_int($qty) || $qty <= 0) {
-                throw new DomainException("Jumlah atau harga {$product->name} tidak valid.");
+                throw new DomainException("Jumlah atau harga {$product->name} tidak valid. Periksa lagi isi keranjang.");
             }
             $lines[] = ['sku' => $product->sku, 'product_id' => $product->id, 'qty' => $qty, 'price' => $price];
         }

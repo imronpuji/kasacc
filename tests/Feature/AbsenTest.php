@@ -60,7 +60,7 @@ it('terlalu jauh dari toko ditolak dengan pesan jarak', function () {
 });
 
 it('sinyal GPS kasar, koordinat kosong atau nol, dan di luar jangkauan ditolak', function () {
-    expect(fn () => $this->svc->clockIn($this->user, TOKO_LAT, TOKO_LNG, 500))->toThrow(DomainException::class, 'kurang akurat');
+    expect(fn () => $this->svc->clockIn($this->user, TOKO_LAT, TOKO_LNG, 500))->toThrow(DomainException::class, 'kurang tepat');
     expect(fn () => $this->svc->clockIn($this->user, 0.0, 0.0, 5))->toThrow(DomainException::class, 'tidak terbaca');
     expect(fn () => $this->svc->clockIn($this->user, 95.0, 10.0, 5))->toThrow(DomainException::class, 'tidak terbaca');
     expect(fn () => $this->svc->clockIn($this->user, TOKO_LAT, 200.0, 5))->toThrow(DomainException::class, 'tidak terbaca');
@@ -78,7 +78,7 @@ it('absen dua kali, pulang tanpa masuk, dan pulang dua kali ditolak', function (
 
 it('lokasi cabang belum diatur memberi pesan jelas', function () {
     $this->branch->update(['lat' => null, 'lng' => null]);
-    expect(fn () => $this->svc->clockIn($this->user, TOKO_LAT, TOKO_LNG, 5))->toThrow(DomainException::class, 'belum diatur');
+    expect(fn () => $this->svc->clockIn($this->user, TOKO_LAT, TOKO_LNG, 5))->toThrow(DomainException::class, 'belum diisi');
 });
 
 it('akun tanpa data karyawan dan karyawan nonaktif tidak bisa absen', function () {

@@ -15,16 +15,16 @@ class BranchesTable
     {
         return $table
             ->columns([
-                TextColumn::make('code')
+                TextColumn::make('code')->label('Kode cabang')
                     ->searchable(),
-                TextColumn::make('name')
+                TextColumn::make('name')->label('Nama cabang')
                     ->searchable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
+                TextColumn::make('created_at')->label('Dibuat')
+                    ->dateTime('d M Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
+                TextColumn::make('updated_at')->label('Terakhir diubah')
+                    ->dateTime('d M Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -32,12 +32,18 @@ class BranchesTable
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
+                ViewAction::make()->label('Lihat'),
+                EditAction::make()->label('Ubah'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->label('Hapus terpilih')
+                        ->modalHeading('Hapus cabang yang dipilih?')
+                        ->modalDescription('Data yang sudah dipakai di transaksi tidak bisa dihapus.')
+                        ->modalSubmitActionLabel('Ya, hapus')
+                        ->successNotificationTitle('Cabang yang dipilih dihapus')
+                        ->failureNotificationTitle('Sebagian data belum terhapus')
+                        ->missingBulkProcessingFailureNotificationMessage('Data yang sudah dipakai di transaksi tidak bisa dihapus.'),
                 ]),
             ]);
     }

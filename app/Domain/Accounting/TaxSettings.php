@@ -10,9 +10,9 @@ class TaxSettings
     public const ENTITIES = ['cv' => 'CV', 'pt' => 'PT', 'firma' => 'Firma', 'perorangan' => 'Perorangan / usaha pribadi'];
 
     public const REGIMES = [
-        'final' => 'PPh final UMKM (persen dari omzet, tanpa melihat untung/rugi)',
-        'badan' => 'PPh badan normal (persen dari laba bersih)',
-        'none' => 'Tidak dihitung di aplikasi (diurus konsultan pajak)',
+        'final' => 'Pajak final: sekian persen dari total penjualan, untung atau rugi tetap dibayar',
+        'badan' => 'Pajak badan: sekian persen dari untung bersih',
+        'none' => 'Jangan hitung di aplikasi (diurus konsultan pajak)',
     ];
 
     /** Isian awal menurut bentuk usaha (PP 55/2022): batas waktu tarif final PT 3 tahun, CV/Firma 4 tahun, perorangan 7 tahun, omzet 500 juta pertama bebas pajak untuk perorangan. */
@@ -80,7 +80,7 @@ class TaxSettings
         $year ??= (int) now(config('kasir.timezone'))->format('Y');
 
         return $year > $last
-            ? "Masa tarif final {$max} tahun sudah lewat (berakhir tahun {$last}). Tanyakan konsultan pajak, mungkin harus pindah ke PPh badan normal."
-            : ($year === $last ? "Tahun {$last} adalah tahun terakhir tarif final. Mulai tahun depan kemungkinan pakai PPh badan normal." : null);
+            ? "Masa tarif pajak final {$max} tahun sudah lewat (berakhir tahun {$last}). Tanyakan konsultan pajak, mungkin Anda harus pindah ke pajak badan."
+            : ($year === $last ? "Tahun {$last} adalah tahun terakhir tarif pajak final. Mulai tahun depan kemungkinan pakai pajak badan." : null);
     }
 }

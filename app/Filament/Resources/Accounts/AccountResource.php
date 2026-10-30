@@ -20,13 +20,17 @@ class AccountResource extends Resource
 {
     protected static string|\UnitEnum|null $navigationGroup = 'Data master';
 
-    protected static ?string $navigationLabel = 'Bagan akun';
+    protected static ?string $navigationLabel = 'Daftar akun';
 
     protected static ?int $navigationSort = 3;
 
+    protected static ?string $modelLabel = 'akun';
+
+    protected static ?string $pluralModelLabel = 'Daftar akun';
+
     protected static ?string $model = Account::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
     public static function canViewAny(): bool
     {
